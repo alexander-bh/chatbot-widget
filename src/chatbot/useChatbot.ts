@@ -516,7 +516,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
         }
 
-        // ── HELPER: avanzar al siguiente nodo automáticamente ──
         const autoAdvance = async () => {
             try {
                 const sid = sessionIdRef.current
@@ -533,7 +532,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 }
 
                 return process(nextNode, depth + 1, sendFn)
-
             } catch {
                 appendMessage("bot", "Error al continuar el flujo.", true)
             }
@@ -552,6 +550,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             return
         }
 
+        // ── Render del contenido principal ──
         let bubbleElement: HTMLDivElement
         if (node.content) {
             bubbleElement = renderBotMessage(node.content)
@@ -587,13 +586,19 @@ export function useChatbot(config: ChatbotConfig | null) {
             return
         }
 
-        if (node.end_conversation) {
-            disableInput()
+        // ── text / html: primero revisar end_conversation, luego autoAdvance ──
+        if (nodeType === "text" || nodeType === "html") {
+            if (node.end_conversation) {
+                disableInput()
+                return
+            }
+            await autoAdvance()
             return
         }
 
-        if (nodeType === "text" || nodeType === "html") {
-            await autoAdvance()
+        // Fallback para otros tipos
+        if (node.end_conversation) {
+            disableInput()
             return
         }
 
