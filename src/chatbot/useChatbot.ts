@@ -717,7 +717,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     const restart = useCallback(async () => {
         sessionIdRef.current = null
         setSessionId(null)
-        isOpenRef.current = true
         if (config) localStorage.removeItem(`chat_session_${config.publicId}`)
 
         if (messagesRef.current) messagesRef.current.innerHTML = ""

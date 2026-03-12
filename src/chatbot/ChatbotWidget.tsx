@@ -4,7 +4,6 @@ import type { ChatbotConfig } from "./useChatbot"
 import "./chatbot.css"
 import { RefreshCcw, Send, X } from "lucide-react"
 
-// Notifica al iframe padre que cambie su tamaño
 const notifyResize = (open: boolean) => {
     window.parent.postMessage({ type: "CHATBOT_RESIZE", open }, "*")
 }
@@ -13,103 +12,61 @@ const notifyWelcome = (visible: boolean, message: string) => {
     window.parent.postMessage({ type: "CHATBOT_WELCOME", visible, message }, "*")
 }
 
-/* ─────────────────────────────────────────
-   Decodifica el parámetro ?config= de la URL
-───────────────────────────────────────── */
 function decodeConfigParam(encoded: string): { payload: string; signature: string } {
     const json = new TextDecoder().decode(
-        Uint8Array.from(
-            atob(decodeURIComponent(encoded)),
-            c => c.charCodeAt(0)
-        )
+        Uint8Array.from(atob(decodeURIComponent(encoded)), c => c.charCodeAt(0))
     )
     const decoded = JSON.parse(json)
-    if (!decoded.payload || !decoded.signature) {
-        throw new Error("Config malformada")
-    }
+    if (!decoded.payload || !decoded.signature) throw new Error("Config malformada")
     return decoded
 }
 
-/* ─────────────────────────────────────────
-   Verifica la firma contra el backend.
-   - Incluye credentials: "omit" (no cookies)
-   - Lanza errores descriptivos por código HTTP
-───────────────────────────────────────── */
-async function verifyConfig(
-    apiBase: string,
-    payload: string,
-    signature: string
-): Promise<ChatbotConfig> {
+async function verifyConfig(apiBase: string, payload: string, signature: string): Promise<ChatbotConfig> {
     const res = await fetch(`${apiBase}/api/chatbot-integration/config/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // credentials omit: el widget no debe enviar cookies del site padre
         credentials: "omit",
         body: JSON.stringify({ payload, signature })
     })
-
     if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         const reason = body?.error ?? res.statusText
-
-        // Errores específicos para mejor debugging
         if (res.status === 403) throw new Error(`AUTH_FAILED: ${reason}`)
         if (res.status === 400) throw new Error(`BAD_REQUEST: ${reason}`)
         throw new Error(`SERVER_ERROR: ${reason}`)
     }
-
     return res.json()
 }
 
-/* ─────────────────────────────────────────
-   Tipos de error para decidir qué mostrar
-───────────────────────────────────────── */
 type ErrorKind = "auth" | "expired" | "network" | "unknown"
 
 function classifyError(err: unknown): ErrorKind {
     if (!(err instanceof Error)) return "unknown"
     if (err.message.startsWith("AUTH_FAILED")) {
-        // Nonce ya usado / firma inválida / dominio no autorizado
-        if (err.message.includes("expirada") || err.message.includes("Nonce")) {
-            return "expired"
-        }
+        if (err.message.includes("expirada") || err.message.includes("Nonce")) return "expired"
         return "auth"
     }
-    if (err.message === "Failed to fetch" || err.message.includes("NetworkError")) {
-        return "network"
-    }
+    if (err.message === "Failed to fetch" || err.message.includes("NetworkError")) return "network"
     return "unknown"
 }
-
 
 export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
 
+    // ── 1. Cargar config ──
     useEffect(() => {
         const loadConfig = async () => {
             try {
-                // 1. Leer ?config= de la URL
                 const params = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
-
-                // 2. Decodificar
                 const { payload: payloadString, signature } = decodeConfigParam(encoded)
                 const payload = JSON.parse(payloadString)
-
                 if (!payload.apiBase) throw new Error("apiBase ausente en payload")
-
-                // 3. Verificar firma + consumir nonce en backend
-                const verifiedConfig = await verifyConfig(
-                    payload.apiBase,
-                    payloadString,
-                    signature
-                )
-
+                const verifiedConfig = await verifyConfig(payload.apiBase, payloadString, signature)
                 setConfig(verifiedConfig)
-
             } catch (err) {
                 console.error("[ChatbotWidget] loadConfig:", err)
                 setError(classifyError(err))
@@ -117,18 +74,29 @@ export default function ChatbotWidget() {
                 setLoading(false)
             }
         }
-
         loadConfig()
-    }, []) // ← una sola vez: el nonce es de un solo uso, no re-intentar return
+    }, [])
 
+    // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
 
-    /* ── Estados de carga / error ── */
-    if (loading) return null  // Invisible mientras carga (el FAB aún no existe)
+    // ── 3. useEffect del welcome DESPUÉS de useChatbot, pero ANTES de returns ──
+    useEffect(() => {
+        if (!config?.welcomeMessage) return
+        if (chatbot.welcomeVisible) {
+            const t = setTimeout(() => {
+                notifyWelcome(true, config.welcomeMessage ?? "")
+            }, 100)
+            return () => clearTimeout(t)
+        } else {
+            notifyWelcome(false, "")
+        }
+    }, [chatbot.welcomeVisible, config?.welcomeMessage, config])
+
+    // ── Returns condicionales SIEMPRE al final, tras todos los hooks ──
+    if (loading) return null
 
     if (error) {
-        // En producción retornamos null para que el widget sea invisible.
-        // En desarrollo mostramos el motivo para facilitar debugging.
         if (import.meta.env.DEV) {
             return (
                 <div style={{
@@ -151,53 +119,19 @@ export default function ChatbotWidget() {
     if (!config) return null
 
     const {
-        messagesRef,
-        inputRef,
-        isOpen,
-        statusText,
-        inputDisabled,
-        sendDisabled,
-        welcomeVisible,
-        viewerOpen,
-        viewerUrl,
-        viewerIsVideo,
-        toggle,
-        close,
-        send,
-        restart,
-        closeViewer,
+        messagesRef, inputRef, isOpen, statusText,
+        inputDisabled, sendDisabled, welcomeVisible,
+        viewerOpen, viewerUrl, viewerIsVideo,
+        toggle, close, send, restart, closeViewer,
     } = chatbot
 
     const hasAvatar = Boolean(config.avatar)
 
-    const handleToggle = () => {
-        const next = !isOpen
-        notifyResize(next)
-        toggle()
-    }
-
-    const handleClose = () => {
-        notifyResize(false)
-        close()
-    }
-
-    useEffect(() => {
-        if (!config) return
-
-        if (welcomeVisible && config.welcomeMessage) {
-            // ✅ Pequeño delay para asegurar que el listener del padre ya existe
-            const t = setTimeout(() => {
-                notifyWelcome(true, config.welcomeMessage ?? "")
-            }, 100)
-            return () => clearTimeout(t)
-        } else {
-            notifyWelcome(false, "")
-        }
-    }, [welcomeVisible, config?.welcomeMessage, config])
+    const handleToggle = () => { notifyResize(!isOpen); toggle() }
+    const handleClose  = () => { notifyResize(false);  close()  }
 
     return (
         <>
-            {/* FAB */}
             <button
                 className={`chat-fab${isOpen ? " active" : ""}`}
                 onClick={handleToggle}
@@ -209,11 +143,8 @@ export default function ChatbotWidget() {
                 }
             </button>
 
-            {/* Widget */}
             <div className={`chat-widget${isOpen ? " open" : ""}`}>
                 <div className="chat">
-
-                    {/* Header */}
                     <header className="chat-header">
                         {hasAvatar
                             ? <img className="chat-avatar" src={config.avatar} alt={config.name} />
@@ -224,27 +155,17 @@ export default function ChatbotWidget() {
                             <div className="chat-status">{statusText}</div>
                         </div>
                         <div className="chat-actions">
-                            <button
-                                className="chat-restart"
-                                onClick={restart}
-                                aria-label="Reiniciar conversación"
-                            >
+                            <button className="chat-restart" onClick={restart} aria-label="Reiniciar conversación">
                                 <RefreshCcw size={18} strokeWidth={2} />
                             </button>
-                            <button
-                                className="chat-close"
-                                onClick={handleClose}
-                                aria-label="Cerrar chat"
-                            >
+                            <button className="chat-close" onClick={handleClose} aria-label="Cerrar chat">
                                 <X size={18} strokeWidth={2} />
                             </button>
                         </div>
                     </header>
 
-                    {/* Messages */}
                     <main ref={messagesRef} />
 
-                    {/* Footer */}
                     <footer>
                         <input
                             id="messageInput"
@@ -254,26 +175,16 @@ export default function ChatbotWidget() {
                             placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
                             disabled={inputDisabled}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault()
-                                    send()
-                                }
+                                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
                             }}
                         />
-                        <button
-                            id="sendBtn"
-                            onClick={() => send()}
-                            disabled={sendDisabled}
-                            aria-label="Enviar"
-                        >
+                        <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
                             <Send size={18} strokeWidth={2} />
                         </button>
                     </footer>
-
                 </div>
             </div>
 
-            {/* Image/Video viewer */}
             <div
                 className={`chat-image-viewer${viewerOpen ? " open" : ""}`}
                 onClick={(e) => { if (e.target === e.currentTarget) closeViewer() }}
