@@ -470,13 +470,14 @@ export function useChatbot(config: ChatbotConfig | null) {
                     (b as HTMLButtonElement).style.pointerEvents = "none"
                 })
                 disableInput()
+                appendMessage("user", o.label)
                 sendFn(o.value ?? o.label)
             }
             optionsContainer.appendChild(btn)
         })
 
         bubbleElement.appendChild(optionsContainer)
-    }, [disableInput])
+    }, [disableInput,appendMessage])
 
     /* ── Core process function ── */
     const process = useCallback(async (node: ChatNode, depth = 0, sendFn: (v: string) => void): Promise<void> => {
