@@ -9,6 +9,10 @@ const notifyResize = (open: boolean) => {
     window.parent.postMessage({ type: "CHATBOT_RESIZE", open }, "*")
 }
 
+const notifyWelcome = (visible: boolean, message: string) => {
+    window.parent.postMessage({ type: "CHATBOT_WELCOME", visible, message }, "*")
+}
+
 /* ─────────────────────────────────────────
    Decodifica el parámetro ?config= de la URL
 ───────────────────────────────────────── */
@@ -79,15 +83,15 @@ function classifyError(err: unknown): ErrorKind {
 
 
 export default function ChatbotWidget() {
-    const [config, setConfig]   = useState<ChatbotConfig | null>(null)
-    const [error, setError]     = useState<ErrorKind | null>(null)
+    const [config, setConfig] = useState<ChatbotConfig | null>(null)
+    const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const loadConfig = async () => {
             try {
                 // 1. Leer ?config= de la URL
-                const params  = new URLSearchParams(window.location.search)
+                const params = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
 
@@ -129,15 +133,15 @@ export default function ChatbotWidget() {
             return (
                 <div style={{
                     position: "fixed", bottom: 16, right: 16,
-                    background: "#fee2e2", border: "1px solid #ef4444",
+                    background: "#190F0F", border: "1px solid #ef4444",
                     borderRadius: 8, padding: "8px 12px",
                     fontSize: 12, color: "#991b1b", maxWidth: 280
                 }}>
                     <strong>Chatbot error ({error})</strong><br />
-                    {error === "expired"  && "La sesión expiró. Recarga la página."}
-                    {error === "auth"     && "Dominio no autorizado o firma inválida."}
-                    {error === "network"  && "No se pudo conectar con el servidor."}
-                    {error === "unknown"  && "Error desconocido. Revisa la consola."}
+                    {error === "expired" && "La sesión expiró. Recarga la página."}
+                    {error === "auth" && "Dominio no autorizado o firma inválida."}
+                    {error === "network" && "No se pudo conectar con el servidor."}
+                    {error === "unknown" && "Error desconocido. Revisa la consola."}
                 </div>
             )
         }
@@ -177,14 +181,12 @@ export default function ChatbotWidget() {
         close()
     }
 
+    useEffect(() => {
+        notifyWelcome(welcomeVisible, config?.welcomeMessage ?? "")
+    }, [welcomeVisible, config?.welcomeMessage])
+
     return (
         <>
-            {welcomeVisible && (
-                <div className="chat-welcome show">
-                    <span className="welcome-text">{config.welcomeMessage}</span>
-                </div>
-            )}
-
             {/* FAB */}
             <button
                 className={`chat-fab${isOpen ? " active" : ""}`}
