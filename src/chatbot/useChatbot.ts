@@ -483,7 +483,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                     appendMessage("user", o.label)
 
                     // enviar al backend
-                    await sendFn(o.value ?? o.label)
+                    await sendFn(o.value || o.label)
                 }
 
                 optionsContainer.appendChild(btn)
