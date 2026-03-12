@@ -88,7 +88,7 @@ body {
     background: white;
     border-color: var(--chat-primary);
     color: var(--chat-primary);
-    box-shadow: 0 2px 10px rgba(37,99,235,0.12);
+    box-shadow: 0 2px 10px rgba(var(--chat-primary-rgb),0.12);
 }
 
 /* ===============================
@@ -110,7 +110,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 10001;
-    box-shadow: 0 4px 20px rgba(37,99,235,0.45), 0 2px 6px rgba(0,0,0,0.12);
+    box-shadow: 0 4px 20px rgba(var(--chat-primary-rgb),0.45), 0 2px 6px rgba(0,0,0,0.12);
     animation: pulse 2.5s infinite;
     transition: transform 0.2s ease, opacity 0.2s ease;
     touch-action: manipulation;
@@ -169,7 +169,7 @@ body {
     border: 1px solid rgba(0,0,0,0.07);
     box-shadow:
         0 4px 20px rgba(0,0,0,0.09),
-        0 12px 40px rgba(37,99,235,0.09),
+        0 12px 40px rgba(var(--chat-primary-rgb),0.09),
         0 1px 3px rgba(0,0,0,0.05);
     transition:
         opacity 0.25s cubic-bezier(.2,.8,.2,1),
@@ -298,7 +298,6 @@ body {
     flex-shrink: 0;
 }
 
-/* Botones del header — estilo círculo translúcido */
 /* Botones del header — sin fondo por defecto */
 .chat-close,
 .chat-restart {
@@ -308,8 +307,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;                    /* ← sin círculo por defecto */
-    border: 1.5px solid transparent;           /* ← borde invisible por defecto */
+    background: transparent;
+    border: 1.5px solid transparent;
     color: white;
     cursor: pointer;
     transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
@@ -361,13 +360,13 @@ body {
     width: 19px; height: 19px;
     display: block;
     fill: none;
-    stroke: white;          /* ← blanco via stroke */
+    stroke: white;
     transform: translateX(1px);
     transition: transform 0.2s ease;
 }
 
 #sendBtn:hover:not(:disabled) svg {
-    transform: translateX(3px);   /* ← desliza levemente al hover */
+    transform: translateX(3px);
 }
 
 /* ===============================
@@ -479,7 +478,7 @@ main {
     gap: 3px;
 }
 
-/* Usuario: gradiente azul igual que header */
+/* Usuario: gradiente igual que header */
 .msg.user .bubble {
     background: linear-gradient(135deg, var(--chat-primary-light) 0%, var(--chat-primary-dark) 100%);
     color: white;
@@ -489,7 +488,7 @@ main {
     min-height: 38px;
     display: inline-flex;
     align-items: center;
-    box-shadow: 0 3px 12px rgba(37,99,235,0.30);
+    box-shadow: 0 3px 12px rgba(var(--chat-primary-rgb),0.30);
 }
 
 .msg.bot.error .bubble {
@@ -543,7 +542,7 @@ main {
 .msg.bot .bubble code {
     background: #f1f5f9; padding: 1px 5px;
     border-radius: 4px; font-size: 12.5px;
-    font-family: monospace; color: #2563eb;
+    font-family: monospace; color: var(--chat-primary);
 }
 
 .bubble-link {
@@ -563,7 +562,7 @@ main {
 }
 .link-action:hover { background: rgba(var(--chat-primary-rgb), 0.16); }
 .link-whatsapp { background: #25d36618; color: #128c7e; }
-.link-phone    { background: #3b82f618; }
+.link-phone    { background: rgba(var(--chat-primary-rgb), 0.09); }
 .link-email    { background: #6366f118; }
 
 /* ===============================
@@ -671,11 +670,11 @@ main {
 .bubble.options button:hover {
     background: #eff6ff; border-color: var(--chat-primary);
     color: var(--chat-primary); transform: translateY(-1px);
-    box-shadow: 0 3px 10px rgba(37,99,235,0.12);
+    box-shadow: 0 3px 10px rgba(var(--chat-primary-rgb),0.12);
 }
 
 /* ===============================
-   INPUT AREA — mismo estilo que header
+   INPUT AREA
 ================================ */
 footer {
     display: flex;
@@ -683,7 +682,6 @@ footer {
     gap: 9px;
     padding: 10px 12px;
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    /* Separador sutil */
     border-top: 1px solid #e8edf3;
     background: white;
     flex-shrink: 0;
@@ -695,7 +693,6 @@ footer {
 #messageInput {
     flex: 1;
     padding: 11px 18px;
-    /* Borde con tono azul muy suave */
     border: 1.5px solid #dde3ee;
     border-radius: 999px;
     outline: none;
@@ -708,7 +705,6 @@ footer {
     appearance: none;
     resize: none;
     color: var(--chat-secondary);
-    /* Misma "temperatura" de color que el fondo de mensajes */
 }
 
 #messageInput::placeholder {
@@ -719,10 +715,10 @@ footer {
 #messageInput:focus {
     border-color: var(--chat-primary-light);
     background: white;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.10);
+    box-shadow: 0 0 0 3px rgba(var(--chat-primary-rgb),0.10);
 }
 
-/* Botón enviar — gradiente azul igual que header y burbujas del usuario */
+/* Botón enviar */
 #sendBtn {
     width: 44px;
     height: 44px;
@@ -735,7 +731,7 @@ footer {
     cursor: pointer;
     padding: 0;
     transition: transform 0.18s, box-shadow 0.18s;
-    box-shadow: 0 3px 14px rgba(37,99,235,0.38);
+    box-shadow: 0 3px 14px rgba(var(--chat-primary-rgb),0.38);
     flex-shrink: 0;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -743,7 +739,7 @@ footer {
 
 #sendBtn:hover:not(:disabled) {
     transform: scale(1.10);
-    box-shadow: 0 5px 18px rgba(37,99,235,0.45);
+    box-shadow: 0 5px 18px rgba(var(--chat-primary-rgb),0.45);
 }
 #sendBtn:active:not(:disabled) { transform: scale(0.93); }
 #sendBtn:disabled { opacity: 0.42; cursor: not-allowed; box-shadow: none; }
@@ -822,7 +818,6 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .message-time { font-size: 10px; margin-top: 2px; }
 
     footer { padding: 9px 11px; padding-bottom: calc(9px + env(safe-area-inset-bottom)); gap: 7px; }
-    /* font-size: 16px evita zoom automático en iOS */
     #messageInput { font-size: 16px; padding: 10px 15px; }
     #sendBtn { width: 42px; height: 42px; }
 
@@ -860,7 +855,7 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 .chat-restart:focus-visible,
 #sendBtn:focus-visible,
 #messageInput:focus-visible {
-    outline: 3px solid rgba(37,99,235,0.50);
+    outline: 3px solid rgba(var(--chat-primary-rgb),0.50);
     outline-offset: 2px;
 }
 .chat-fab:focus:not(:focus-visible),

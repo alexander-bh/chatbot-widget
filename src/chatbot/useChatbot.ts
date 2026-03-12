@@ -85,6 +85,19 @@ const rgb = (hex: string) => {
     return `${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5), 16)}`
 }
 
+/** Aclara un color hex sumando `amount` a cada canal (0–255) */
+const lighten = (hex: string, amount: number): string => {
+    if (!/^#[\da-f]{6}$/i.test(hex)) return hex
+    const clamp = (n: number) => Math.min(255, Math.max(0, n))
+    const r = clamp(parseInt(hex.slice(1, 3), 16) + amount)
+    const g = clamp(parseInt(hex.slice(3, 5), 16) + amount)
+    const b = clamp(parseInt(hex.slice(5), 16) + amount)
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`
+}
+
+/** Oscurece un color hex restando `amount` a cada canal */
+const darken = (hex: string, amount: number): string => lighten(hex, -amount)
+
 /* ─────────────────────────────────────────
    HOOK
 ───────────────────────────────────────── */
@@ -120,13 +133,16 @@ export function useChatbot(config: ChatbotConfig | null) {
         sessionIdRef.current = sessionId
     }, [sessionId])
 
-    // Apply theme CSS vars
+    // Apply theme CSS vars — incluyendo light y dark dinámicos
     useEffect(() => {
         if (!config) return
-        document.documentElement.style.setProperty("--chat-primary", config.primaryColor)
-        document.documentElement.style.setProperty("--chat-secondary", config.secondaryColor)
-        document.documentElement.style.setProperty("--chat-primary-rgb", rgb(config.primaryColor))
-        document.documentElement.style.setProperty("--chat-secondary-rgb", rgb(config.secondaryColor))
+        const p = config.primaryColor
+        const s = config.secondaryColor
+        document.documentElement.style.setProperty("--chat-primary",       p)
+        document.documentElement.style.setProperty("--chat-primary-light", lighten(p, 28))
+        document.documentElement.style.setProperty("--chat-primary-dark",  darken(p, 22))
+        document.documentElement.style.setProperty("--chat-primary-rgb",   rgb(p))
+        document.documentElement.style.setProperty("--chat-secondary",     s)
     }, [config?.primaryColor, config?.secondaryColor])
 
     // Welcome message
