@@ -115,7 +115,7 @@ export default function ChatbotWidget() {
         }
 
         loadConfig()
-    }, []) // ← una sola vez: el nonce es de un solo uso, no re-intentar
+    }, []) // ← una sola vez: el nonce es de un solo uso, no re-intentar return
 
     const chatbot = useChatbot(config)
 
