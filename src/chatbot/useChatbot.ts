@@ -452,7 +452,7 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     /* ── Inline options / policy ── */
     const renderInlineOptions = useCallback(
-        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string) => void) => {
+        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string) => Promise<void>) => {
 
             const list = (node.node_type === "policy" || node.type === "policy")
                 ? node.policy!
@@ -466,23 +466,24 @@ export function useChatbot(config: ChatbotConfig | null) {
                 const btn = document.createElement("button")
                 btn.textContent = o.label
 
-                btn.onclick = () => {
+                btn.onclick = async () => {
 
-                    // 🔹 desactivar botones
+                    // desactivar botones
                     optionsContainer.querySelectorAll("button").forEach(b => {
-                        (b as HTMLButtonElement).disabled = true
-                            ; (b as HTMLButtonElement).style.opacity = "0.5"
-                            ; (b as HTMLButtonElement).style.cursor = "not-allowed"
-                            ; (b as HTMLButtonElement).style.pointerEvents = "none"
+                        const el = b as HTMLButtonElement
+                        el.disabled = true
+                        el.style.opacity = "0.5"
+                        el.style.cursor = "not-allowed"
+                        el.style.pointerEvents = "none"
                     })
 
                     disableInput()
 
-                    // ✅ mostrar mensaje del usuario en el chat
+                    // mostrar mensaje del usuario
                     appendMessage("user", o.label)
 
-                    // enviar valor al backend
-                    sendFn(o.value ?? o.label)
+                    // enviar al backend
+                    await sendFn(o.value ?? o.label)
                 }
 
                 optionsContainer.appendChild(btn)
@@ -494,7 +495,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         [disableInput, appendMessage])
 
     /* ── Core process function ── */
-    const process = useCallback(async (node: ChatNode, depth = 0, sendFn: (v: string) => void): Promise<void> => {
+    const process = useCallback(async (node: ChatNode, depth = 0, sendFn: (v: string) => Promise<void>): Promise<void> => {
         if (!node || depth > 50 || !config) return
 
         const nodeType = node.node_type || node.type
@@ -604,7 +605,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     ])
 
     /* ── Send message ── */
-    const send = useCallback(async (v?: string) => {
+    const send = useCallback(async (v?: string): Promise<void> => {
         if (!config) return
 
         const text = v ?? inputRef.current?.value?.trim()
@@ -646,8 +647,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                 sendingRef.current = false
                 return
             }
-
-            process(nextNode, 0, send)
+            await process(nextNode, 0, send)
 
         } catch {
             hideTyping()
