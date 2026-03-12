@@ -33,22 +33,32 @@ interface Option {
 }
 
 interface ChatNode {
+
     session_id?: string
     node_id?: string
-    content?: string
-    type?: string
+
     node_type?: string
-    input_type?: string
+    type?: string
+
+    content?: string
+
     typing_time?: number
-    end_conversation?: boolean
-    completed?: boolean
+
+    input_type?: string
+
     validation_error?: boolean
     message?: string
+
     options?: Option[]
     policy?: Option[]
+
     media?: MediaItem[]
     link_actions?: LinkAction[]
-    auto_next?: boolean   // 👈 AGREGAR
+
+    auto_next?: boolean
+
+    end_conversation?: boolean
+    completed?: boolean
 }
 
 const TEXT_INPUT_TYPES = ["question", "email", "phone", "number"]
@@ -69,6 +79,8 @@ const rgb = (hex: string) => {
 ───────────────────────────────────────── */
 export function useChatbot(config: ChatbotConfig | null) {
 
+
+
     /* ── REFS — siempre primero, sin condiciones ── */
     const messagesRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -79,7 +91,10 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     /* ── STATE — siempre, sin condiciones ── */
     const [isOpen, setIsOpen] = useState(false)
-    const [sessionId, setSessionId] = useState<string | null>(null)
+    const [sessionId, setSessionId] = useState<string | null>(() => {
+        if (!config) return null
+        return sessionStorage.getItem(`chat_session_${config?.publicId}`) ?? null
+    })
     const [inputDisabled, setInputDisabled] = useState(true)
     const [sendDisabled, setSendDisabled] = useState(true)
     const [statusText, setStatusText] = useState("Conectando...")
@@ -87,6 +102,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     const [viewerUrl, setViewerUrl] = useState("")
     const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
+
 
 
     /* ── EFFECTS — siempre declarados, guard interno con config ── */
@@ -121,15 +137,19 @@ export function useChatbot(config: ChatbotConfig | null) {
             }, delay)
             return () => clearTimeout(timer)
         }
-    }, [config?.publicId])
+    }, [
+        config?.publicId,
+        config?.welcomeMessage,
+        config?.welcomeDelay,
+        config?.showWelcomeOnMobile
+    ])
 
     /* ── Scroll to bottom ── */
     const scrollToBottom = useCallback(() => {
         requestAnimationFrame(() => {
-            setTimeout(() => {
-                if (messagesRef.current)
-                    messagesRef.current.scrollTop = messagesRef.current.scrollHeight
-            }, 50)
+            if (messagesRef.current) {
+                messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+            }
         })
     }, [])
 
@@ -261,47 +281,77 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     /* ── Link actions ── */
     const renderLinkActions = useCallback((actions: LinkAction[], bubble: HTMLDivElement) => {
+
         const container = document.createElement("div")
         container.className = "link-actions"
 
         actions.forEach(action => {
+
             const a = document.createElement("a")
             a.className = `link-action link-${action.type}`
             a.textContent = action.title || action.value
 
+            const target = action.new_tab ? "_blank" : "_top"
+
             switch (action.type) {
+
                 case "link":
                     a.href = action.value
-                    a.target = action.new_tab ? "_blank" : "_self"
                     break
                 case "email": {
-                    const subject = encodeURIComponent("Contacto desde el chatbot")
-                    const body = encodeURIComponent("Hola, quiero más información.")
-                    a.href = `mailto:${action.value.trim()}?subject=${subject}&body=${body}`
-                    a.target = "_self"
+
+                    const email = action.value.trim()
+
+                    const chatbotName = config?.name || "Chatbot"
+
+                    const subject = encodeURIComponent(`Contacto desde chatbot: ${chatbotName}`)
+
+                    const body = encodeURIComponent(
+                        `Hola,
+
+                        Estoy contactando desde el chatbot "${chatbotName}".
+
+                        Quiero más información.
+
+                        Gracias.`)
+
+                    const gmailURL =
+                        `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`
+
+                    const mailtoURL =
+                        `mailto:${email}?subject=${subject}&body=${body}`
+
+                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+                    a.href = isMobile ? mailtoURL : gmailURL
                     break
                 }
                 case "phone":
                     a.href = `tel:${action.value}`
-                    a.target = "_self"
                     break
-                case "whatsapp": {
+                case "whatsapp":
                     const phone = action.value.replace(/\D/g, "")
                     const fullPhone = phone.startsWith("52") ? phone : `52${phone}`
-                    a.href = `https://wa.me/${fullPhone}`
-                    a.target = "_blank"
-                    a.rel = "noopener noreferrer"
+                    a.href = `https://api.whatsapp.com/send?phone=${fullPhone}`
                     break
-                }
+
                 default:
                     return
             }
 
+            a.target = target
+
+            if (target === "_blank") {
+                a.rel = "noopener noreferrer"
+            }
+
             container.appendChild(a)
+
         })
 
         bubble.appendChild(container)
-    }, [])
+
+    }, [config])
 
     /* ── Media carousel ── */
     const renderMediaCarousel = useCallback((mediaList: MediaItem[], bubbleElement: HTMLDivElement) => {
@@ -407,10 +457,9 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     /* ── Core process function ── */
     const process = useCallback(async (node: ChatNode, depth = 0, sendFn: (v: string) => void): Promise<void> => {
-        if (!node || depth > 20 || !config) return
+        if (!node || depth > 50 || !config) return
 
-        const nodeType = node.node_type
-        console.log("NODE RECIBIDO:", node.node_type, node)
+        const nodeType = node.node_type || node.type
 
         if (node.validation_error) {
             hideTyping()
@@ -428,42 +477,40 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
         }
 
+        // ── HELPER: avanzar al siguiente nodo automáticamente ──
+        const autoAdvance = async () => {
+            try {
+                const sid = sessionIdRef.current
+                if (!sid) return
+                const r = await fetch(
+                    `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
+                    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
+                )
+                const nextNode: ChatNode = await r.json()
+
+                if (!nextNode || nextNode.completed) {
+                    disableInput()
+                    return
+                }
+
+                return process(nextNode, depth + 1, sendFn)
+
+            } catch {
+                appendMessage("bot", "Error al continuar el flujo.", true)
+            }
+        }
+
         if (nodeType === "link") {
-
             const bubbleElement = renderBotMessage(node.content || "")
-
             if (node.link_actions?.length) {
                 renderLinkActions(node.link_actions, bubbleElement)
             }
-
             if (node.end_conversation) {
                 disableInput()
                 return
             }
-
-            if (node.auto_next !== false) {
-
-                try {
-
-                    const sid = sessionIdRef.current
-
-                    const r = await fetch(
-                        `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
-                        { method: "POST" }
-                    )
-
-                    const nextNode: ChatNode = await r.json()
-
-                    if (!nextNode?.completed) {
-                        return process(nextNode, depth + 1, sendFn)
-                    }
-
-                } catch {
-                    appendMessage("bot", "Error al continuar el flujo.", true)
-                }
-
-            }
-
+            // ✅ Siempre avanzar después de link
+            await autoAdvance()
             return
         }
 
@@ -476,43 +523,15 @@ export function useChatbot(config: ChatbotConfig | null) {
         }
 
         if (nodeType === "media" && Array.isArray(node.media)) {
-
             renderMediaCarousel(node.media, bubbleElement)
-
             if (node.end_conversation) {
                 disableInput()
                 return
             }
-
-            if (node.auto_next) {   // 👈 usar tipado correcto
-                disableInput()
-
-                setTimeout(async () => {
-                    try {
-
-                        const sid = sessionIdRef.current
-
-                        const r = await fetch(
-                            `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
-                            { method: "POST" }
-                        )
-
-                        const nextNode: ChatNode = await r.json()
-
-                        if (!nextNode?.completed) {
-                            process(nextNode, depth + 1, sendFn)
-                        }
-
-                    } catch {
-                        appendMessage("bot", "Error al continuar el flujo.", true)
-                    }
-
-                }, 400)
-
-                return
-            }
-
-            enableInput()
+            // ✅ Siempre avanzar después de media
+            disableInput()
+            await new Promise(r => setTimeout(r, 400))
+            await autoAdvance()
             return
         }
 
@@ -536,17 +555,12 @@ export function useChatbot(config: ChatbotConfig | null) {
             return
         }
 
-        try {
-            const sid = sessionIdRef.current
-            const r = await fetch(
-                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
-                { method: "POST" }
-            )
-            const nextNode: ChatNode = await r.json()
-            if (!nextNode?.completed) return process(nextNode, depth + 1, sendFn)
-        } catch {
-            appendMessage("bot", "Ocurrió un error al continuar el flujo.", true)
+        // ✅ Nodo text u otro tipo desconocido — avanzar automáticamente
+        if (nodeType === "text" || nodeType === "html") {
+            await autoAdvance()
+            return
         }
+
     }, [
         config,
         appendMessage, configureInput, enableInput, disableInput,
@@ -570,7 +584,6 @@ export function useChatbot(config: ChatbotConfig | null) {
         }
 
         disableInput()
-        showTyping()
 
         try {
             const r = await fetch(
@@ -584,7 +597,6 @@ export function useChatbot(config: ChatbotConfig | null) {
 
             const nextNode: ChatNode = await r.json()
 
-            hideTyping()
 
             // ✅ Si hay error de validación, mostrar error y re-habilitar input
             if (nextNode?.validation_error) {
@@ -642,6 +654,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             const d: ChatNode = await r.json()
             sessionIdRef.current = d.session_id!
             setSessionId(d.session_id!)
+            sessionStorage.setItem(`chat_session_${config.publicId}`, d.session_id!)
             hideTyping()
             setStatusText("En línea")
             process(d, 0, send)
@@ -679,6 +692,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         sessionIdRef.current = null
         setSessionId(null)
         startedRef.current = false
+        if (config) sessionStorage.removeItem(`chat_session_${config.publicId}`)
 
         if (messagesRef.current) messagesRef.current.innerHTML = ""
         if (inputRef.current) inputRef.current.value = ""
