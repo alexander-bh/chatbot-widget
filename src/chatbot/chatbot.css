@@ -299,6 +299,7 @@ body {
 }
 
 /* Botones del header — estilo círculo translúcido */
+/* Botones del header — sin fondo por defecto */
 .chat-close,
 .chat-restart {
     width: 38px;
@@ -307,11 +308,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255,255,255,0.18);
-    border: 1.5px solid rgba(255,255,255,0.28);
+    background: transparent;                    /* ← sin círculo por defecto */
+    border: 1.5px solid transparent;           /* ← borde invisible por defecto */
     color: white;
     cursor: pointer;
-    transition: background 0.18s, transform 0.18s;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
     padding: 0;
     flex-shrink: 0;
     touch-action: manipulation;
@@ -320,22 +321,54 @@ body {
     min-height: 44px;
 }
 
-.chat-close { font-size: 20px; line-height: 1; font-family: var(--font); }
-
+/* Círculo blanco aparece solo al hover */
 .chat-close:hover,
 .chat-restart:hover {
-    background: rgba(255,255,255,0.30);
+    background: rgba(255,255,255,0.22);
+    border-color: rgba(255,255,255,0.35);
     transform: scale(1.08);
 }
 
 .chat-close:active,
-.chat-restart:active { transform: scale(0.92); }
+.chat-restart:active { transform: scale(0.90); }
 
+/* SVG íconos — stroke blanco, sin fill */
+.chat-close svg,
 .chat-restart svg {
-    width: 17px; height: 17px; display: block;
-    transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+    width: 18px; height: 18px;
+    display: block;
+    fill: none;
+    stroke: white;
 }
-.chat-restart:hover svg { transform: rotate(-180deg); }
+
+/* Animación rotate en restart */
+.chat-restart svg {
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chat-restart:hover svg {
+    transform: rotate(-180deg);
+}
+
+/* Animación en X: escala + rotate sutil */
+.chat-close svg {
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chat-close:hover svg {
+    transform: rotate(90deg) scale(1.15);
+}
+
+#sendBtn svg {
+    width: 19px; height: 19px;
+    display: block;
+    fill: none;
+    stroke: white;          /* ← blanco via stroke */
+    transform: translateX(1px);
+    transition: transform 0.2s ease;
+}
+
+#sendBtn:hover:not(:disabled) svg {
+    transform: translateX(3px);   /* ← desliza levemente al hover */
+}
 
 /* ===============================
    MESSAGES AREA
@@ -708,16 +741,6 @@ footer {
     -webkit-tap-highlight-color: transparent;
 }
 
-#sendBtn svg {
-    width: 19px; height: 19px;
-    display: block;
-    /* El SVG del componente usa fill, forzamos blanco */
-    fill: white;
-    color: white;
-    /* Leve offset para centrar el icono de avión */
-    transform: translateX(1px);
-}
-
 #sendBtn:hover:not(:disabled) {
     transform: scale(1.10);
     box-shadow: 0 5px 18px rgba(37,99,235,0.45);
@@ -802,7 +825,6 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     /* font-size: 16px evita zoom automático en iOS */
     #messageInput { font-size: 16px; padding: 10px 15px; }
     #sendBtn { width: 42px; height: 42px; }
-    #sendBtn svg { width: 17px; height: 17px; }
 
     .bubble.options button { min-height: 46px; font-size: 13.5px; padding: 11px 13px; }
     .chat-close, .chat-restart { min-width: 44px; min-height: 44px; }

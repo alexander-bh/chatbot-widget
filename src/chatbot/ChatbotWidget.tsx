@@ -2,51 +2,13 @@ import { useEffect, useState } from "react"
 import { useChatbot } from "./useChatbot"
 import type { ChatbotConfig } from "./useChatbot"
 import "./chatbot.css"
+import { RefreshCcw, Send, X } from "lucide-react"
+
 
 // Notifica al iframe padre que cambie su tamaño
 const notifyResize = (open: boolean) => {
     window.parent.postMessage({ type: "CHATBOT_RESIZE", open }, "*")
 }
-
-// Ícono de avión de papel (mismo gradiente que el header)
-const SendIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M22 2L11 13"
-            stroke="white"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
-        <path
-            d="M22 2L15 22L11 13L2 9L22 2Z"
-            stroke="white"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
-    </svg>
-)
-
-// Ícono de restart
-const RestartIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
-        <path
-            d="M3 3v5h5"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
-    </svg>
-)
 
 export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
@@ -165,19 +127,11 @@ export default function ChatbotWidget() {
                             <div className="chat-status">{statusText}</div>
                         </div>
                         <div className="chat-actions">
-                            <button
-                                className="chat-restart"
-                                onClick={restart}
-                                aria-label="Reiniciar conversación"
-                            >
-                                <RestartIcon />
+                            <button className="chat-restart" onClick={restart} aria-label="Reiniciar conversación">
+                                <RefreshCcw size={18} strokeWidth={2} />
                             </button>
-                            <button
-                                className="chat-close"
-                                onClick={handleClose}
-                                aria-label="Cerrar chat"
-                            >
-                                ×
+                            <button className="chat-close" onClick={handleClose} aria-label="Cerrar chat">
+                                <X size={18} strokeWidth={2} />
                             </button>
                         </div>
                     </header>
@@ -201,13 +155,8 @@ export default function ChatbotWidget() {
                                 }
                             }}
                         />
-                        <button
-                            id="sendBtn"
-                            onClick={() => send()}
-                            disabled={sendDisabled}
-                            aria-label="Enviar"
-                        >
-                            <SendIcon />
+                        <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
+                            <Send size={18} strokeWidth={2} />
                         </button>
                     </footer>
 

@@ -136,8 +136,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                 if (!sid || abandonSentRef.current) return
                 abandonSentRef.current = true
                 navigator.sendBeacon(
-                    `${config.apiBase}/api/public-chatbot/${sid}/abandon`,
-                    new Blob([JSON.stringify({})], { type: "application/json" })
+                    `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
                 )
             }, 30_000)
         }
@@ -157,8 +156,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (!isOpenRef.current) return
             abandonSentRef.current = true
             navigator.sendBeacon(
-                `${config.apiBase}/api/conversations/${sid}/abandon`,
-                new Blob([JSON.stringify({})], { type: "application/json" })
+                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
             )
         }
 
@@ -448,7 +446,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             const isLast = index === MAX_VISIBLE - 1
             if (isLast && extra > 0) {
                 item.classList.add("has-more-overlay")
-                item.dataset.more = `+${extra + 1}`
+                item.dataset.more = `+${extra}`
             }
 
             if (media.type === "image") {
@@ -714,15 +712,16 @@ export function useChatbot(config: ChatbotConfig | null) {
             setStatusText("Conectando...")
 
             const visitorId = getVisitorId()
-            console.log("visitor_id enviado:", visitorId)
 
             const r = await fetch(
                 `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/start`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ origin_url: config.originDomain, visitor_id: getVisitorId() })
-
+                    body: JSON.stringify({
+                        origin_url: config.originDomain,
+                        visitor_id: visitorId
+                    })
                 }
             )
 
@@ -760,13 +759,27 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [config, start])
 
     const close = useCallback(() => {
+
         if (abandonTimerRef.current) {
             clearTimeout(abandonTimerRef.current)
             abandonTimerRef.current = null
         }
+
+        const sid = sessionIdRef.current
+
+        if (sid && !abandonSentRef.current) {
+            abandonSentRef.current = true
+
+            navigator.sendBeacon(
+                `${config?.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
+            )
+        }
+
         isOpenRef.current = false
         setIsOpen(false)
-    }, [])
+
+    }, [config])
+
 
     /* ── Restart conversation ── */
     const restart = useCallback(async () => {
