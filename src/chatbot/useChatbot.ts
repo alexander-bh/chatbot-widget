@@ -451,33 +451,47 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [openImageViewer, openVideoViewer, scrollToBottom])
 
     /* ── Inline options / policy ── */
-    const renderInlineOptions = useCallback((node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string) => void) => {
-        const list = (node.node_type === "policy" || node.type === "policy")
-            ? node.policy!
-            : node.options!
+    const renderInlineOptions = useCallback(
+        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string) => void) => {
 
-        const optionsContainer = document.createElement("div")
-        optionsContainer.className = "inline-options"
+            const list = (node.node_type === "policy" || node.type === "policy")
+                ? node.policy!
+                : node.options!
 
-        list.forEach(o => {
-            const btn = document.createElement("button")
-            btn.textContent = o.label
-            btn.onclick = () => {
-                optionsContainer.querySelectorAll("button").forEach(b => {
-                    (b as HTMLButtonElement).disabled = true;
-                    (b as HTMLButtonElement).style.opacity = "0.5";
-                    (b as HTMLButtonElement).style.cursor = "not-allowed";
-                    (b as HTMLButtonElement).style.pointerEvents = "none"
-                })
-                disableInput()
-                appendMessage("user", o.label)
-                sendFn(o.value ?? o.label)
-            }
-            optionsContainer.appendChild(btn)
-        })
+            const optionsContainer = document.createElement("div")
+            optionsContainer.className = "inline-options"
 
-        bubbleElement.appendChild(optionsContainer)
-    }, [disableInput,appendMessage])
+            list.forEach(o => {
+
+                const btn = document.createElement("button")
+                btn.textContent = o.label
+
+                btn.onclick = () => {
+
+                    // 🔹 desactivar botones
+                    optionsContainer.querySelectorAll("button").forEach(b => {
+                        (b as HTMLButtonElement).disabled = true
+                            ; (b as HTMLButtonElement).style.opacity = "0.5"
+                            ; (b as HTMLButtonElement).style.cursor = "not-allowed"
+                            ; (b as HTMLButtonElement).style.pointerEvents = "none"
+                    })
+
+                    disableInput()
+
+                    // ✅ mostrar mensaje del usuario en el chat
+                    appendMessage("user", o.label)
+
+                    // enviar valor al backend
+                    sendFn(o.value ?? o.label)
+                }
+
+                optionsContainer.appendChild(btn)
+            })
+
+            bubbleElement.appendChild(optionsContainer)
+
+        },
+        [disableInput, appendMessage])
 
     /* ── Core process function ── */
     const process = useCallback(async (node: ChatNode, depth = 0, sendFn: (v: string) => void): Promise<void> => {
