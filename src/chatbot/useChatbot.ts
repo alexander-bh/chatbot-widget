@@ -66,6 +66,17 @@ const TEXT_INPUT_TYPES = ["question", "email", "phone", "number"]
 /* ─────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────── */
+
+const getVisitorId = () => {
+    const key = "chat_visitor_id"
+    let id = localStorage.getItem(key)
+    if (!id) {
+        id = crypto.randomUUID()
+        localStorage.setItem(key, id)
+    }
+    return id
+}
+
 const getTime = () =>
     new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })
 
@@ -79,21 +90,22 @@ const rgb = (hex: string) => {
 ───────────────────────────────────────── */
 export function useChatbot(config: ChatbotConfig | null) {
 
-
-
     /* ── REFS — siempre primero, sin condiciones ── */
     const messagesRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
     const startedRef = useRef(false)
+    const abandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const sessionIdRef = useRef<string | null>(null)
+    const abandonSentRef = useRef(false)
     const typingRef = useRef<HTMLDivElement | null>(null)
     const sendingRef = useRef(false)
+    const isOpenRef = useRef(false)
 
     /* ── STATE — siempre, sin condiciones ── */
     const [isOpen, setIsOpen] = useState(false)
     const [sessionId, setSessionId] = useState<string | null>(() => {
         if (!config) return null
-        return sessionStorage.getItem(`chat_session_${config?.publicId}`) ?? null
+        return localStorage.getItem(`chat_session_${config?.publicId}`) ?? null
     })
     const [inputDisabled, setInputDisabled] = useState(true)
     const [sendDisabled, setSendDisabled] = useState(true)
@@ -103,7 +115,62 @@ export function useChatbot(config: ChatbotConfig | null) {
     const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
 
+    useEffect(() => {
+        if (!config) return
 
+        const cancelAbandon = () => {
+            if (abandonTimerRef.current) {
+                clearTimeout(abandonTimerRef.current)
+                abandonTimerRef.current = null
+            }
+        }
+
+        const scheduleAbandon = () => {
+            if (!sessionIdRef.current || abandonSentRef.current) return
+            if (!isOpenRef.current) return
+            if (abandonTimerRef.current) return // no duplicar
+
+            abandonTimerRef.current = setTimeout(() => {
+                abandonTimerRef.current = null
+                const sid = sessionIdRef.current
+                if (!sid || abandonSentRef.current) return
+                abandonSentRef.current = true
+                navigator.sendBeacon(
+                    `${config.apiBase}/api/public-chatbot/${sid}/abandon`,
+                    new Blob([JSON.stringify({})], { type: "application/json" })
+                )
+            }, 30_000)
+        }
+
+        const handleVisibility = () => {
+            if (document.visibilityState === "hidden") {
+                scheduleAbandon()
+            } else {
+                cancelAbandon()
+            }
+        }
+
+        const handleUnload = () => {
+            cancelAbandon()
+            const sid = sessionIdRef.current
+            if (!sid || abandonSentRef.current) return
+            if (!isOpenRef.current) return
+            abandonSentRef.current = true
+            navigator.sendBeacon(
+                `${config.apiBase}/api/conversations/${sid}/abandon`,
+                new Blob([JSON.stringify({})], { type: "application/json" })
+            )
+        }
+
+        window.addEventListener("beforeunload", handleUnload)
+        document.addEventListener("visibilitychange", handleVisibility)
+
+        return () => {
+            cancelAbandon()
+            window.removeEventListener("beforeunload", handleUnload)
+            document.removeEventListener("visibilitychange", handleVisibility)
+        }
+    }, [config?.apiBase])
 
     /* ── EFFECTS — siempre declarados, guard interno con config ── */
 
@@ -291,8 +358,8 @@ export function useChatbot(config: ChatbotConfig | null) {
             a.className = `link-action link-${action.type}`
             a.textContent = action.title || action.value
 
-            const target = action.new_tab ? "_blank" : "_top"
-
+            //const target = action.new_tab ? "_blank" : "_top"
+            const target = "_blank"
             switch (action.type) {
 
                 case "link":
@@ -621,6 +688,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
             appendMessage("bot", "Error al enviar el mensaje", true)
             enableInput()
+            sendingRef.current = false
         }
 
         sendingRef.current = false
@@ -635,26 +703,33 @@ export function useChatbot(config: ChatbotConfig | null) {
         process,
     ])
 
+
+
     /* ── Start conversation ── */
     const start = useCallback(async () => {
         if (!config) return
+
         try {
             showTyping()
             setStatusText("Conectando...")
+
+            const visitorId = getVisitorId()
+            console.log("visitor_id enviado:", visitorId)
 
             const r = await fetch(
                 `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/start`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ origin_url: config.originDomain })
+                    body: JSON.stringify({ origin_url: config.originDomain, visitor_id: getVisitorId() })
+
                 }
             )
 
             const d: ChatNode = await r.json()
             sessionIdRef.current = d.session_id!
             setSessionId(d.session_id!)
-            sessionStorage.setItem(`chat_session_${config.publicId}`, d.session_id!)
+            localStorage.setItem(`chat_session_${config.publicId}`, d.session_id!)
             hideTyping()
             setStatusText("En línea")
             process(d, 0, send)
@@ -670,6 +745,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (!config) return
         setIsOpen(prev => {
             const next = !prev
+            isOpenRef.current = next
             if (next) {
                 setWelcomeVisible(false)
                 const welcomeKey = `chat_welcome_seen_${config.publicId}`
@@ -684,15 +760,21 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [config, start])
 
     const close = useCallback(() => {
+        if (abandonTimerRef.current) {
+            clearTimeout(abandonTimerRef.current)
+            abandonTimerRef.current = null
+        }
+        isOpenRef.current = false
         setIsOpen(false)
     }, [])
 
     /* ── Restart conversation ── */
     const restart = useCallback(async () => {
+        abandonSentRef.current = false
         sessionIdRef.current = null
         setSessionId(null)
-        startedRef.current = false
-        if (config) sessionStorage.removeItem(`chat_session_${config.publicId}`)
+        isOpenRef.current = true
+        if (config) localStorage.removeItem(`chat_session_${config.publicId}`)
 
         if (messagesRef.current) messagesRef.current.innerHTML = ""
         if (inputRef.current) inputRef.current.value = ""
