@@ -138,11 +138,11 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (!config) return
         const p = config.primaryColor
         const s = config.secondaryColor
-        document.documentElement.style.setProperty("--chat-primary",       p)
+        document.documentElement.style.setProperty("--chat-primary", p)
         document.documentElement.style.setProperty("--chat-primary-light", lighten(p, 28))
-        document.documentElement.style.setProperty("--chat-primary-dark",  darken(p, 22))
-        document.documentElement.style.setProperty("--chat-primary-rgb",   rgb(p))
-        document.documentElement.style.setProperty("--chat-secondary",     s)
+        document.documentElement.style.setProperty("--chat-primary-dark", darken(p, 22))
+        document.documentElement.style.setProperty("--chat-primary-rgb", rgb(p))
+        document.documentElement.style.setProperty("--chat-secondary", s)
     }, [config?.primaryColor, config?.secondaryColor])
 
     // Welcome message
@@ -154,7 +154,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (!localStorage.getItem(welcomeKey)) {
             const delay = (config.welcomeDelay ?? 2) * 1000
             const timer = setTimeout(() => {
-                if (!isOpen && (!isMobile || config.showWelcomeOnMobile)) {
+                if (!isOpenRef.current && (!isMobile || config.showWelcomeOnMobile)) {
                     setWelcomeVisible(true)
                     localStorage.setItem(welcomeKey, "1")
                 }

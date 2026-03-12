@@ -182,8 +182,18 @@ export default function ChatbotWidget() {
     }
 
     useEffect(() => {
-        notifyWelcome(welcomeVisible, config?.welcomeMessage ?? "")
-    }, [welcomeVisible, config?.welcomeMessage])
+        if (!config) return
+
+        if (welcomeVisible && config.welcomeMessage) {
+            // ✅ Pequeño delay para asegurar que el listener del padre ya existe
+            const t = setTimeout(() => {
+                notifyWelcome(true, config.welcomeMessage ?? "")
+            }, 100)
+            return () => clearTimeout(t)
+        } else {
+            notifyWelcome(false, "")
+        }
+    }, [welcomeVisible, config?.welcomeMessage, config])
 
     return (
         <>
