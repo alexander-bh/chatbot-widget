@@ -94,9 +94,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     const messagesRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
     const startedRef = useRef(false)
-    const abandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const sessionIdRef = useRef<string | null>(null)
-    const abandonSentRef = useRef(false)
     const typingRef = useRef<HTMLDivElement | null>(null)
     const sendingRef = useRef(false)
     const isOpenRef = useRef(false)
@@ -114,61 +112,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     const [viewerUrl, setViewerUrl] = useState("")
     const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
-
-    useEffect(() => {
-        if (!config) return
-
-        const cancelAbandon = () => {
-            if (abandonTimerRef.current) {
-                clearTimeout(abandonTimerRef.current)
-                abandonTimerRef.current = null
-            }
-        }
-
-        const scheduleAbandon = () => {
-            if (!sessionIdRef.current || abandonSentRef.current) return
-            if (!isOpenRef.current) return
-            if (abandonTimerRef.current) return // no duplicar
-
-            abandonTimerRef.current = setTimeout(() => {
-                abandonTimerRef.current = null
-                const sid = sessionIdRef.current
-                if (!sid || abandonSentRef.current) return
-                abandonSentRef.current = true
-                navigator.sendBeacon(
-                    `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
-                )
-            }, 30_000)
-        }
-
-        const handleVisibility = () => {
-            if (document.visibilityState === "hidden") {
-                scheduleAbandon()
-            } else {
-                cancelAbandon()
-            }
-        }
-
-        const handleUnload = () => {
-            cancelAbandon()
-            const sid = sessionIdRef.current
-            if (!sid || abandonSentRef.current) return
-            if (!isOpenRef.current) return
-            abandonSentRef.current = true
-            navigator.sendBeacon(
-                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
-            )
-        }
-
-        window.addEventListener("beforeunload", handleUnload)
-        document.addEventListener("visibilitychange", handleVisibility)
-
-        return () => {
-            cancelAbandon()
-            window.removeEventListener("beforeunload", handleUnload)
-            document.removeEventListener("visibilitychange", handleVisibility)
-        }
-    }, [config?.apiBase])
 
     /* ── EFFECTS — siempre declarados, guard interno con config ── */
 
@@ -356,7 +299,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             a.className = `link-action link-${action.type}`
             a.textContent = action.title || action.value
 
-            //const target = action.new_tab ? "_blank" : "_top"
             const target = "_blank"
             switch (action.type) {
 
@@ -574,7 +516,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 disableInput()
                 return
             }
-            // ✅ Siempre avanzar después de link
             await autoAdvance()
             return
         }
@@ -593,7 +534,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 disableInput()
                 return
             }
-            // ✅ Siempre avanzar después de media
             disableInput()
             await new Promise(r => setTimeout(r, 400))
             await autoAdvance()
@@ -620,7 +560,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             return
         }
 
-        // ✅ Nodo text u otro tipo desconocido — avanzar automáticamente
         if (nodeType === "text" || nodeType === "html") {
             await autoAdvance()
             return
@@ -662,8 +601,6 @@ export function useChatbot(config: ChatbotConfig | null) {
 
             const nextNode: ChatNode = await r.json()
 
-
-            // ✅ Si hay error de validación, mostrar error y re-habilitar input
             if (nextNode?.validation_error) {
                 appendMessage("bot", nextNode.message || "Error de validación", true)
                 const inputType = nextNode.input_type || nextNode.type || "question"
@@ -672,7 +609,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 sendingRef.current = false
                 return
             }
-
 
             if (nextNode?.completed) {
                 disableInput()
@@ -700,8 +636,6 @@ export function useChatbot(config: ChatbotConfig | null) {
         hideTyping,
         process,
     ])
-
-
 
     /* ── Start conversation ── */
     const start = useCallback(async () => {
@@ -759,31 +693,12 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [config, start])
 
     const close = useCallback(() => {
-
-        if (abandonTimerRef.current) {
-            clearTimeout(abandonTimerRef.current)
-            abandonTimerRef.current = null
-        }
-
-        const sid = sessionIdRef.current
-
-        if (sid && !abandonSentRef.current) {
-            abandonSentRef.current = true
-
-            navigator.sendBeacon(
-                `${config?.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/abandon`
-            )
-        }
-
         isOpenRef.current = false
         setIsOpen(false)
-
-    }, [config])
-
+    }, [])
 
     /* ── Restart conversation ── */
     const restart = useCallback(async () => {
-        abandonSentRef.current = false
         sessionIdRef.current = null
         setSessionId(null)
         isOpenRef.current = true
