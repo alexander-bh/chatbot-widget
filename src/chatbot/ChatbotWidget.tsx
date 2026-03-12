@@ -4,61 +4,146 @@ import type { ChatbotConfig } from "./useChatbot"
 import "./chatbot.css"
 import { RefreshCcw, Send, X } from "lucide-react"
 
-
 // Notifica al iframe padre que cambie su tamaño
 const notifyResize = (open: boolean) => {
     window.parent.postMessage({ type: "CHATBOT_RESIZE", open }, "*")
 }
 
+/* ─────────────────────────────────────────
+   Decodifica el parámetro ?config= de la URL
+───────────────────────────────────────── */
+function decodeConfigParam(encoded: string): { payload: string; signature: string } {
+    const json = new TextDecoder().decode(
+        Uint8Array.from(
+            atob(decodeURIComponent(encoded)),
+            c => c.charCodeAt(0)
+        )
+    )
+    const decoded = JSON.parse(json)
+    if (!decoded.payload || !decoded.signature) {
+        throw new Error("Config malformada")
+    }
+    return decoded
+}
+
+/* ─────────────────────────────────────────
+   Verifica la firma contra el backend.
+   - Incluye credentials: "omit" (no cookies)
+   - Lanza errores descriptivos por código HTTP
+───────────────────────────────────────── */
+async function verifyConfig(
+    apiBase: string,
+    payload: string,
+    signature: string
+): Promise<ChatbotConfig> {
+    const res = await fetch(`${apiBase}/api/chatbot-integration/config/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // credentials omit: el widget no debe enviar cookies del site padre
+        credentials: "omit",
+        body: JSON.stringify({ payload, signature })
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const reason = body?.error ?? res.statusText
+
+        // Errores específicos para mejor debugging
+        if (res.status === 403) throw new Error(`AUTH_FAILED: ${reason}`)
+        if (res.status === 400) throw new Error(`BAD_REQUEST: ${reason}`)
+        throw new Error(`SERVER_ERROR: ${reason}`)
+    }
+
+    return res.json()
+}
+
+/* ─────────────────────────────────────────
+   Tipos de error para decidir qué mostrar
+───────────────────────────────────────── */
+type ErrorKind = "auth" | "expired" | "network" | "unknown"
+
+function classifyError(err: unknown): ErrorKind {
+    if (!(err instanceof Error)) return "unknown"
+    if (err.message.startsWith("AUTH_FAILED")) {
+        // Nonce ya usado / firma inválida / dominio no autorizado
+        if (err.message.includes("expirada") || err.message.includes("Nonce")) {
+            return "expired"
+        }
+        return "auth"
+    }
+    if (err.message === "Failed to fetch" || err.message.includes("NetworkError")) {
+        return "network"
+    }
+    return "unknown"
+}
+
+
 export default function ChatbotWidget() {
-    const [config, setConfig] = useState<ChatbotConfig | null>(null)
-    const [error, setError] = useState<string | null>(null)
+    const [config, setConfig]   = useState<ChatbotConfig | null>(null)
+    const [error, setError]     = useState<ErrorKind | null>(null)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const loadConfig = async () => {
             try {
-                const params = new URLSearchParams(window.location.search)
+                // 1. Leer ?config= de la URL
+                const params  = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
 
-                const decoded = JSON.parse(
-                    new TextDecoder().decode(
-                        Uint8Array.from(
-                            atob(decodeURIComponent(encoded)),
-                            c => c.charCodeAt(0)
-                        )
-                    )
-                )
-
-                const payloadString = decoded.payload
+                // 2. Decodificar
+                const { payload: payloadString, signature } = decodeConfigParam(encoded)
                 const payload = JSON.parse(payloadString)
 
-                const res = await fetch(`${payload.apiBase}/api/chatbot-integration/config/verify`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        payload: payloadString,
-                        signature: decoded.signature
-                    })
-                })
+                if (!payload.apiBase) throw new Error("apiBase ausente en payload")
 
-                if (!res.ok) throw new Error("Firma inválida")
+                // 3. Verificar firma + consumir nonce en backend
+                const verifiedConfig = await verifyConfig(
+                    payload.apiBase,
+                    payloadString,
+                    signature
+                )
 
-                const verifiedConfig = await res.json()
                 setConfig(verifiedConfig)
 
             } catch (err) {
-                console.error(err)
-                setError("No se pudo cargar el chatbot")
+                console.error("[ChatbotWidget] loadConfig:", err)
+                setError(classifyError(err))
+            } finally {
+                setLoading(false)
             }
         }
 
         loadConfig()
-    }, [])
+    }, []) // ← una sola vez: el nonce es de un solo uso, no re-intentar
 
     const chatbot = useChatbot(config)
 
-    if (error) return null
+    /* ── Estados de carga / error ── */
+    if (loading) return null  // Invisible mientras carga (el FAB aún no existe)
+
+    if (error) {
+        // En producción retornamos null para que el widget sea invisible.
+        // En desarrollo mostramos el motivo para facilitar debugging.
+        if (import.meta.env.DEV) {
+            return (
+                <div style={{
+                    position: "fixed", bottom: 16, right: 16,
+                    background: "#fee2e2", border: "1px solid #ef4444",
+                    borderRadius: 8, padding: "8px 12px",
+                    fontSize: 12, color: "#991b1b", maxWidth: 280
+                }}>
+                    <strong>Chatbot error ({error})</strong><br />
+                    {error === "expired"  && "La sesión expiró. Recarga la página."}
+                    {error === "auth"     && "Dominio no autorizado o firma inválida."}
+                    {error === "network"  && "No se pudo conectar con el servidor."}
+                    {error === "unknown"  && "Error desconocido. Revisa la consola."}
+                </div>
+            )
+        }
+        return null
+    }
+
     if (!config) return null
 
     const {
@@ -127,10 +212,18 @@ export default function ChatbotWidget() {
                             <div className="chat-status">{statusText}</div>
                         </div>
                         <div className="chat-actions">
-                            <button className="chat-restart" onClick={restart} aria-label="Reiniciar conversación">
+                            <button
+                                className="chat-restart"
+                                onClick={restart}
+                                aria-label="Reiniciar conversación"
+                            >
                                 <RefreshCcw size={18} strokeWidth={2} />
                             </button>
-                            <button className="chat-close" onClick={handleClose} aria-label="Cerrar chat">
+                            <button
+                                className="chat-close"
+                                onClick={handleClose}
+                                aria-label="Cerrar chat"
+                            >
                                 <X size={18} strokeWidth={2} />
                             </button>
                         </div>
@@ -139,7 +232,7 @@ export default function ChatbotWidget() {
                     {/* Messages */}
                     <main ref={messagesRef} />
 
-                    {/* Footer — input + send */}
+                    {/* Footer */}
                     <footer>
                         <input
                             id="messageInput"
@@ -155,7 +248,12 @@ export default function ChatbotWidget() {
                                 }
                             }}
                         />
-                        <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
+                        <button
+                            id="sendBtn"
+                            onClick={() => send()}
+                            disabled={sendDisabled}
+                            aria-label="Enviar"
+                        >
                             <Send size={18} strokeWidth={2} />
                         </button>
                     </footer>
