@@ -120,7 +120,7 @@ export default function ChatbotWidget() {
 
     const {
         messagesRef, inputRef, isOpen, statusText,
-        inputDisabled, sendDisabled, welcomeVisible,
+        inputDisabled, sendDisabled,
         viewerOpen, viewerUrl, viewerIsVideo,
         toggle, close, send, restart, closeViewer,
     } = chatbot
