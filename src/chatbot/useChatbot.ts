@@ -118,6 +118,8 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (!config) return null
         return localStorage.getItem(`chat_session_${config?.publicId}`) ?? null
     })
+    const [connectionStatus, setConnectionStatus] = useState<"connected" | "error" | "connecting">("connecting")
+    const [unreadCount, setUnreadCount] = useState(0)
     const [inputDisabled, setInputDisabled] = useState(true)
     const [sendDisabled, setSendDisabled] = useState(true)
     const [statusText, setStatusText] = useState("Conectando...")
@@ -254,6 +256,9 @@ export function useChatbot(config: ChatbotConfig | null) {
         c.append(b, t)
         m.appendChild(c)
         messagesRef.current.appendChild(m)
+        if (from === "bot" && !isOpenRef.current) {
+            setUnreadCount(prev => prev + 1)
+        }
         scrollToBottom()
     }, [config?.avatar, scrollToBottom])
 
@@ -280,6 +285,9 @@ export function useChatbot(config: ChatbotConfig | null) {
         contentWrapper.append(bubble, timeEl)
         m.append(avatarImg, contentWrapper)
         messagesRef.current?.appendChild(m)
+        if (!isOpenRef.current) {         
+            setUnreadCount(prev => prev + 1) // ← agrega
+        }
         scrollToBottom()
 
         return bubble
@@ -701,10 +709,12 @@ export function useChatbot(config: ChatbotConfig | null) {
             localStorage.setItem(`chat_session_${config.publicId}`, d.session_id!)
             hideTyping()
             setStatusText("En línea")
+            setConnectionStatus("connected")
             process(d, 0, send)
         } catch {
             hideTyping()
             setStatusText("Error")
+            setConnectionStatus("error")
             appendMessage("bot", "No pude conectarme al servidor", true)
         }
     }, [config, showTyping, hideTyping, appendMessage, process, send])
@@ -717,6 +727,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             isOpenRef.current = next
             if (next) {
                 setWelcomeVisible(false)
+                setUnreadCount(0)
                 const welcomeKey = `chat_welcome_seen_${config.publicId}`
                 localStorage.setItem(welcomeKey, "1")
                 if (!startedRef.current) {
@@ -771,6 +782,8 @@ export function useChatbot(config: ChatbotConfig | null) {
             send: () => { },
             restart: () => { },
             closeViewer: () => { },
+            connectionStatus: "connecting" as const,
+            unreadCount: 0,
         }
     }
 
@@ -790,5 +803,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         send,
         restart,
         closeViewer,
+        connectionStatus,
+        unreadCount,
     }
 }

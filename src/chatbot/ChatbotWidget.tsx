@@ -54,6 +54,7 @@ export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
+    
 
     // ── 1. Cargar config ──
     useEffect(() => {
@@ -123,12 +124,14 @@ export default function ChatbotWidget() {
         inputDisabled, sendDisabled,
         viewerOpen, viewerUrl, viewerIsVideo,
         toggle, close, send, restart, closeViewer,
+        connectionStatus,
+        unreadCount,
     } = chatbot
 
     const hasAvatar = Boolean(config.avatar)
 
     const handleToggle = () => { notifyResize(!isOpen); toggle() }
-    const handleClose  = () => { notifyResize(false);  close()  }
+    const handleClose = () => { notifyResize(false); close() }
 
     return (
         <>
@@ -141,6 +144,16 @@ export default function ChatbotWidget() {
                     ? <img className="chat-avatar-fab" src={config.avatar} alt={config.name} />
                     : <span className="chat-avatar-fab-fallback">{config.name?.charAt(0) ?? "C"}</span>
                 }
+
+                {/* Badge de notificaciones — superior derecha */}
+                {!isOpen && unreadCount > 0 && (
+                    <span className="fab-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                )}
+
+                {/* Dot de conexión — inferior derecha */}
+                {!isOpen && (
+                    <span className={`fab-connection-dot ${connectionStatus}`} />
+                )}
             </button>
 
             <div className={`chat-widget${isOpen ? " open" : ""}`}>

@@ -1130,7 +1130,101 @@ main::-webkit-scrollbar-thumb:hover {
         border-left: none;
     }
 
-    .chat-fab { bottom: 0; right: 0; left: 0; top: 0; margin: auto; width: 56px; height: 56px; z-index: 9998; }
+    /* ===============================
+   FAB BADGES & CONNECTION DOT
+================================ */
+
+    /* Badge de notificaciones — esquina superior derecha */
+    .fab-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: #ef4444;
+        color: white;
+        font-size: 11px;
+        font-weight: 800;
+        font-family: var(--font);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.45);
+        animation: badgePop 0.3s cubic-bezier(.2, .8, .2, 1);
+        z-index: 2;
+        line-height: 1;
+        pointer-events: none;
+    }
+
+    @keyframes badgePop {
+        0% {
+            transform: scale(0);
+            opacity: 0;
+        }
+
+        70% {
+            transform: scale(1.2);
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    /* Dot de conexión — esquina inferior derecha */
+    .fab-connection-dot {
+        position: absolute;
+        bottom: 1px;
+        right: 1px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        border: 2.5px solid white;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.20);
+        pointer-events: none;
+        z-index: 2;
+        transition: background 0.4s ease;
+    }
+
+    .fab-connection-dot.connecting {
+        background: #f59e0b;
+        animation: dotPulse 1.2s infinite;
+    }
+
+    .fab-connection-dot.connected {
+        background: #22c55e;
+    }
+
+    .fab-connection-dot.error {
+        background: #ef4444;
+    }
+
+    @keyframes dotPulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.4;
+        }
+    }
+
+    .chat-fab {
+        bottom: 0;
+        right: 0;
+        left: 0;
+        top: 0;
+        margin: auto;
+        width: 56px;
+        height: 56px;
+        z-index: 9998;
+    }
 
     .chat-fab.active {
         animation: none;
