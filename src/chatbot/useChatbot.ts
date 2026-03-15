@@ -219,19 +219,34 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [MESSAGES_KEY])
 
     // 4f. Welcome message
+    // 4f. Welcome message — delega la decisión al padre
     useEffect(() => {
         if (!config?.welcomeMessage) return
-        const welcomeKey = `chat_welcome_seen_${config.publicId}`
         const isMobile = matchMedia("(max-width:480px)").matches
-        if (!sessionStorage.getItem(welcomeKey)) {
-            const delay = (config.welcomeDelay ?? 2) * 1000
-            const timer = setTimeout(() => {
-                if (!isOpenRef.current && (!isMobile || config.showWelcomeOnMobile)) {
-                    setWelcomeVisible(true)
-                    sessionStorage.setItem(welcomeKey, "1")
-                }
-            }, delay)
-            return () => clearTimeout(timer)
+        if (isMobile && !config.showWelcomeOnMobile) return
+
+        const delay = (config.welcomeDelay ?? 2) * 1000
+
+        const timer = setTimeout(() => {
+            if (isOpenRef.current) return
+
+            // Preguntar al padre si puede mostrar el welcome
+            window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST" }, "*")
+        }, delay)
+
+        // Escuchar la respuesta del padre
+        const handlePermission = (e: MessageEvent) => {
+            if (!e.data || e.data.type !== "CHATBOT_WELCOME_PERMISSION") return
+            if (e.data.allowed && !isOpenRef.current) {
+                setWelcomeVisible(true)
+            }
+        }
+
+        window.addEventListener("message", handlePermission)
+
+        return () => {
+            clearTimeout(timer)
+            window.removeEventListener("message", handlePermission)
         }
     }, [
         config?.publicId,
@@ -640,7 +655,8 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (next) {
                 setWelcomeVisible(false)
                 setUnreadCount(0)
-                sessionStorage.setItem(`chat_welcome_seen_${config.publicId}`, "1")
+                // Notificar al padre que el welcome fue cerrado/visto
+                window.parent.postMessage({ type: "CHATBOT_WELCOME_SEEN" }, "*")
                 if (!startedRef.current) {
                     startedRef.current = true
                     setTimeout(() => start(), 0)
