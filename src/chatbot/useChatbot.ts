@@ -87,13 +87,13 @@ export function useChatbot(config: ChatbotConfig | null) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        1. REFS
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-    const messagesRef  = useRef<HTMLDivElement>(null)
-    const inputRef     = useRef<HTMLInputElement>(null)
-    const startedRef   = useRef(false)
+    const messagesRef = useRef<HTMLDivElement>(null)
+    const inputRef = useRef<HTMLInputElement>(null)
+    const startedRef = useRef(false)
     const sessionIdRef = useRef<string | null>(null)
-    const typingRef    = useRef<HTMLDivElement | null>(null)
-    const sendingRef   = useRef(false)
-    const isOpenRef    = useRef(false)
+    const typingRef = useRef<HTMLDivElement | null>(null)
+    const sendingRef = useRef(false)
+    const isOpenRef = useRef(false)
 
     const MESSAGES_KEY = config ? `chatbot_dom_${config.publicId}` : null
 
@@ -106,13 +106,13 @@ export function useChatbot(config: ChatbotConfig | null) {
         return localStorage.getItem(`chat_session_${config.publicId}`) ?? null
     })
     const [connectionStatus, setConnectionStatus] = useState<"connected" | "error" | "connecting">("connecting")
-    const [unreadCount,    setUnreadCount]    = useState(0)
-    const [inputDisabled,  setInputDisabled]  = useState(true)
-    const [sendDisabled,   setSendDisabled]   = useState(true)
-    const [statusText,     setStatusText]     = useState("Conectando...")
-    const [viewerOpen,     setViewerOpen]     = useState(false)
-    const [viewerUrl,      setViewerUrl]      = useState("")
-    const [viewerIsVideo,  setViewerIsVideo]  = useState(false)
+    const [unreadCount, setUnreadCount] = useState(0)
+    const [inputDisabled, setInputDisabled] = useState(true)
+    const [sendDisabled, setSendDisabled] = useState(true)
+    const [statusText, setStatusText] = useState("Conectando...")
+    const [viewerOpen, setViewerOpen] = useState(false)
+    const [viewerUrl, setViewerUrl] = useState("")
+    const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -151,7 +151,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     // 4b. Restaurar sesión activa si existe (sin tocar el DOM todavía)
     useEffect(() => {
         if (!config) return
-        const savedSession  = localStorage.getItem(`chat_session_${config.publicId}`)
+        const savedSession = localStorage.getItem(`chat_session_${config.publicId}`)
         const savedMessages = sessionStorage.getItem(`chatbot_dom_${config.publicId}`)
 
         if (savedSession && savedMessages) {
@@ -170,11 +170,11 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (!config) return
         const p = config.primaryColor
         const s = config.secondaryColor
-        document.documentElement.style.setProperty("--chat-primary",       p)
+        document.documentElement.style.setProperty("--chat-primary", p)
         document.documentElement.style.setProperty("--chat-primary-light", lighten(p, 28))
-        document.documentElement.style.setProperty("--chat-primary-dark",  darken(p, 22))
-        document.documentElement.style.setProperty("--chat-primary-rgb",   rgb(p))
-        document.documentElement.style.setProperty("--chat-secondary",     s)
+        document.documentElement.style.setProperty("--chat-primary-dark", darken(p, 22))
+        document.documentElement.style.setProperty("--chat-primary-rgb", rgb(p))
+        document.documentElement.style.setProperty("--chat-secondary", s)
     }, [config?.primaryColor, config?.secondaryColor])
 
     // 4d. Restaurar HTML del DOM — ÚNICO efecto de restauración
@@ -189,13 +189,13 @@ export function useChatbot(config: ChatbotConfig | null) {
                     .querySelectorAll<HTMLButtonElement>(".inline-options button")
                     .forEach(btn => {
                         btn.disabled = true
-                        btn.style.opacity       = "0.5"
-                        btn.style.cursor        = "not-allowed"
+                        btn.style.opacity = "0.5"
+                        btn.style.cursor = "not-allowed"
                         btn.style.pointerEvents = "none"
                     })
                 scrollToBottom()
             }
-        } catch {}
+        } catch { }
     }, [MESSAGES_KEY, scrollToBottom])
 
     // 4e. MutationObserver — persistir cambios del DOM en sessionStorage
@@ -206,12 +206,12 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (!messagesRef.current || !MESSAGES_KEY) return
             try {
                 sessionStorage.setItem(MESSAGES_KEY, messagesRef.current.innerHTML)
-            } catch {}
+            } catch { }
         })
 
         observer.observe(messagesRef.current, {
-            childList:     true,
-            subtree:       true,
+            childList: true,
+            subtree: true,
             characterData: true
         })
 
@@ -222,14 +222,13 @@ export function useChatbot(config: ChatbotConfig | null) {
     useEffect(() => {
         if (!config?.welcomeMessage) return
         const welcomeKey = `chat_welcome_seen_${config.publicId}`
-        const isMobile   = matchMedia("(max-width:480px)").matches
-
-        if (!localStorage.getItem(welcomeKey)) {
+        const isMobile = matchMedia("(max-width:480px)").matches
+        if (!sessionStorage.getItem(welcomeKey)) {
             const delay = (config.welcomeDelay ?? 2) * 1000
             const timer = setTimeout(() => {
                 if (!isOpenRef.current && (!isMobile || config.showWelcomeOnMobile)) {
                     setWelcomeVisible(true)
-                    localStorage.setItem(welcomeKey, "1")
+                    sessionStorage.setItem(welcomeKey, "1")
                 }
             }, delay)
             return () => clearTimeout(timer)
@@ -247,10 +246,10 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     const configureInput = useCallback((type: string) => {
         if (!inputRef.current) return
-        inputRef.current.type        = "text"
+        inputRef.current.type = "text"
         inputRef.current.placeholder = config?.inputPlaceholder ?? "Escribe tu mensaje..."
-        if (type === "email")  { inputRef.current.type = "email";  inputRef.current.placeholder = "correo@ejemplo.com" }
-        if (type === "phone")  { inputRef.current.type = "tel";    inputRef.current.placeholder = "Ej. +52 999 123 4567" }
+        if (type === "email") { inputRef.current.type = "email"; inputRef.current.placeholder = "correo@ejemplo.com" }
+        if (type === "phone") { inputRef.current.type = "tel"; inputRef.current.placeholder = "Ej. +52 999 123 4567" }
         if (type === "number") { inputRef.current.type = "number" }
     }, [config?.inputPlaceholder])
 
@@ -282,7 +281,7 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         if (from === "bot") {
             const a = document.createElement("img")
-            a.src       = config?.avatar ?? ""
+            a.src = config?.avatar ?? ""
             a.className = "msg-avatar"
             m.appendChild(a)
         }
@@ -291,11 +290,11 @@ export function useChatbot(config: ChatbotConfig | null) {
         c.className = "msg-content"
 
         const b = document.createElement("div")
-        b.className   = "bubble"
+        b.className = "bubble"
         b.textContent = text
 
         const t = document.createElement("div")
-        t.className   = "message-time"
+        t.className = "message-time"
         t.textContent = getTime()
 
         c.append(b, t)
@@ -310,7 +309,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         m.className = "msg bot"
 
         const avatarImg = document.createElement("img")
-        avatarImg.src       = config?.avatar ?? ""
+        avatarImg.src = config?.avatar ?? ""
         avatarImg.className = "msg-avatar"
 
         const contentWrapper = document.createElement("div")
@@ -321,7 +320,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         bubble.innerHTML = html
 
         const timeEl = document.createElement("div")
-        timeEl.className   = "message-time"
+        timeEl.className = "message-time"
         timeEl.textContent = getTime()
 
         contentWrapper.append(bubble, timeEl)
@@ -354,18 +353,18 @@ export function useChatbot(config: ChatbotConfig | null) {
             a.className = `link-action link-${action.type}`
             a.textContent = action.title || action.value
             a.target = "_blank"
-            a.rel    = "noopener noreferrer"
+            a.rel = "noopener noreferrer"
 
             switch (action.type) {
                 case "link":
                     a.href = action.value
                     break
                 case "email": {
-                    const email      = action.value.trim()
+                    const email = action.value.trim()
                     const chatbotName = config?.name || "Chatbot"
-                    const subject    = encodeURIComponent(`Contacto desde chatbot: ${chatbotName}`)
-                    const body       = encodeURIComponent(`Hola,\n\nEstoy contactando desde el chatbot "${chatbotName}".\n\nQuiero más información.\n\nGracias.`)
-                    const isMobile   = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+                    const subject = encodeURIComponent(`Contacto desde chatbot: ${chatbotName}`)
+                    const body = encodeURIComponent(`Hola,\n\nEstoy contactando desde el chatbot "${chatbotName}".\n\nQuiero más información.\n\nGracias.`)
+                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
                     a.href = isMobile
                         ? `mailto:${email}?subject=${subject}&body=${body}`
                         : `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`
@@ -375,7 +374,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                     a.href = `tel:${action.value}`
                     break
                 case "whatsapp": {
-                    const phone     = action.value.replace(/\D/g, "")
+                    const phone = action.value.replace(/\D/g, "")
                     const fullPhone = phone.startsWith("52") ? phone : `52${phone}`
                     a.href = `https://api.whatsapp.com/send?phone=${fullPhone}`
                     break
@@ -412,19 +411,19 @@ export function useChatbot(config: ChatbotConfig | null) {
             }
 
             if (media.type === "image") {
-                const img     = document.createElement("img")
-                img.src       = media.url
-                img.loading   = "lazy"
-                item.onclick  = () => openImageViewer(media.url)
+                const img = document.createElement("img")
+                img.src = media.url
+                img.loading = "lazy"
+                item.onclick = () => openImageViewer(media.url)
                 item.appendChild(img)
             }
 
             if (media.type === "video") {
-                const video         = document.createElement("video")
-                video.src           = media.url
-                video.playsInline   = true
-                video.muted         = true
-                video.preload       = "metadata"
+                const video = document.createElement("video")
+                video.src = media.url
+                video.playsInline = true
+                video.muted = true
+                video.preload = "metadata"
 
                 if (total === 1) {
                     video.controls = true
@@ -432,11 +431,11 @@ export function useChatbot(config: ChatbotConfig | null) {
                 } else {
                     video.controls = false
                     item.appendChild(video)
-                    const overlay       = document.createElement("div")
-                    overlay.className   = "video-play-overlay"
-                    overlay.innerHTML   = `<svg viewBox="0 0 48 48" width="44" height="44"><circle cx="24" cy="24" r="24" fill="rgba(0,0,0,0.5)"/><polygon points="19,14 38,24 19,34" fill="white"/></svg>`
-                    item.style.cursor   = "pointer"
-                    item.onclick        = () => openVideoViewer(media.url)
+                    const overlay = document.createElement("div")
+                    overlay.className = "video-play-overlay"
+                    overlay.innerHTML = `<svg viewBox="0 0 48 48" width="44" height="44"><circle cx="24" cy="24" r="24" fill="rgba(0,0,0,0.5)"/><polygon points="19,14 38,24 19,34" fill="white"/></svg>`
+                    item.style.cursor = "pointer"
+                    item.onclick = () => openVideoViewer(media.url)
                     item.appendChild(overlay)
                 }
             }
@@ -458,13 +457,13 @@ export function useChatbot(config: ChatbotConfig | null) {
             container.className = "inline-options"
 
             list.forEach(o => {
-                const btn       = document.createElement("button")
+                const btn = document.createElement("button")
                 btn.textContent = o.label
-                btn.onclick     = async () => {
+                btn.onclick = async () => {
                     container.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
-                        b.disabled            = true
-                        b.style.opacity       = "0.5"
-                        b.style.cursor        = "not-allowed"
+                        b.disabled = true
+                        b.style.opacity = "0.5"
+                        b.style.cursor = "not-allowed"
                         b.style.pointerEvents = "none"
                     })
                     disableInput()
@@ -540,7 +539,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         }
 
         if ((nodeType === "options" && node.options?.length) ||
-            (nodeType === "policy"  && node.policy?.length)) {
+            (nodeType === "policy" && node.policy?.length)) {
             renderInlineOptions(node, bubbleElement, sendFn)
             disableInput()
             return
@@ -641,7 +640,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (next) {
                 setWelcomeVisible(false)
                 setUnreadCount(0)
-                localStorage.setItem(`chat_welcome_seen_${config.publicId}`, "1")
+                sessionStorage.setItem(`chat_welcome_seen_${config.publicId}`, "1")
                 if (!startedRef.current) {
                     startedRef.current = true
                     setTimeout(() => start(), 0)
@@ -664,8 +663,8 @@ export function useChatbot(config: ChatbotConfig | null) {
             sessionStorage.removeItem(`chatbot_dom_${config.publicId}`)
         }
         if (messagesRef.current) messagesRef.current.innerHTML = ""
-        if (inputRef.current)    inputRef.current.value = ""
-        if (typingRef.current)   { typingRef.current.remove(); typingRef.current = null }
+        if (inputRef.current) inputRef.current.value = ""
+        if (typingRef.current) { typingRef.current.remove(); typingRef.current = null }
         disableInput()
         setStatusText("Reiniciando…")
         startedRef.current = true
@@ -680,7 +679,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             messagesRef, inputRef,
             isOpen: false, statusText: "", inputDisabled: true, sendDisabled: true,
             welcomeVisible: false, viewerOpen: false, viewerUrl: "", viewerIsVideo: false,
-            toggle: () => {}, close: () => {}, send: async () => {}, restart: async () => {}, closeViewer: () => {},
+            toggle: () => { }, close: () => { }, send: async () => { }, restart: async () => { }, closeViewer: () => { },
             connectionStatus: "connecting" as const, unreadCount: 0,
         }
     }
