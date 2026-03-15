@@ -219,7 +219,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [MESSAGES_KEY])
 
     // 4f. Welcome message
-    // 4f. Welcome message — delega la decisión al padre
     useEffect(() => {
         if (!config?.welcomeMessage) return
         const isMobile = matchMedia("(max-width:480px)").matches
@@ -227,22 +226,20 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         const delay = (config.welcomeDelay ?? 2) * 1000
 
-        const timer = setTimeout(() => {
-            if (isOpenRef.current) return
-
-            // Preguntar al padre si puede mostrar el welcome
-            window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST" }, "*")
-        }, delay)
-
-        // Escuchar la respuesta del padre
+        // ✅ Registrar el listener ANTES del setTimeout
         const handlePermission = (e: MessageEvent) => {
             if (!e.data || e.data.type !== "CHATBOT_WELCOME_PERMISSION") return
             if (e.data.allowed && !isOpenRef.current) {
                 setWelcomeVisible(true)
             }
         }
-
         window.addEventListener("message", handlePermission)
+
+        // ✅ Enviar el request DESPUÉS de registrar el listener
+        const timer = setTimeout(() => {
+            if (isOpenRef.current) return
+            window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST" }, "*")
+        }, delay)
 
         return () => {
             clearTimeout(timer)
