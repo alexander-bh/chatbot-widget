@@ -54,7 +54,6 @@ export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
-    
 
     // ── 1. Cargar config ──
     useEffect(() => {
@@ -63,10 +62,15 @@ export default function ChatbotWidget() {
                 const params = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
+
                 const { payload: payloadString, signature } = decodeConfigParam(encoded)
-                const payload = JSON.parse(payloadString)
-                if (!payload.apiBase) throw new Error("apiBase ausente en payload")
-                const verifiedConfig = await verifyConfig(payload.apiBase, payloadString, signature)
+
+                // FIX Bug 1: usar VITE_API_BASE_URL del entorno en lugar de apiBase
+                // del payload sin verificar — evita redirección a servidor atacante
+                const apiBase = import.meta.env.VITEAPIBASEURL
+                if (!apiBase) throw new Error("VITE_API_BASE_URL no configurado")
+
+                const verifiedConfig = await verifyConfig(apiBase, payloadString, signature)
                 setConfig(verifiedConfig)
             } catch (err) {
                 console.error("[ChatbotWidget] loadConfig:", err)
@@ -81,18 +85,21 @@ export default function ChatbotWidget() {
     // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
 
-    // ── 3. useEffect del welcome DESPUÉS de useChatbot, pero ANTES de returns ──
+    // ── 3. useEffect del welcome — FIX Bug 2: dependencias acotadas ──
     useEffect(() => {
         if (!config?.welcomeMessage) return
+
         if (chatbot.welcomeVisible) {
             const t = setTimeout(() => {
                 notifyWelcome(true, config.welcomeMessage ?? "")
             }, 100)
             return () => clearTimeout(t)
         } else {
+            // Solo notifica "ocultar" cuando welcomeVisible cambia a false,
+            // no en cada render por cambio de config completo
             notifyWelcome(false, "")
         }
-    }, [chatbot.welcomeVisible, config?.welcomeMessage, config])
+    }, [chatbot.welcomeVisible, config?.welcomeMessage])
 
     // ── Returns condicionales SIEMPRE al final, tras todos los hooks ──
     if (loading) return null
@@ -145,12 +152,10 @@ export default function ChatbotWidget() {
                     : <span className="chat-avatar-fab-fallback">{config.name?.charAt(0) ?? "C"}</span>
                 }
 
-                {/* Badge de notificaciones — superior derecha */}
                 {!isOpen && unreadCount > 0 && (
                     <span className="fab-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
                 )}
 
-                {/* Dot de conexión — inferior derecha */}
                 {!isOpen && (
                     <span className={`fab-connection-dot ${connectionStatus}`} />
                 )}
