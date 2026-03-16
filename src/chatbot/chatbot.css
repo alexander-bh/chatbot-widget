@@ -120,7 +120,6 @@ body {
     z-index: 10001;
     box-shadow: 0 4px 20px rgba(var(--chat-primary-rgb), 0.45), 0 2px 6px rgba(0, 0, 0, 0.12);
     animation: pulse 2.5s infinite;
-    /* FIX: curva spring + sombra animada */
     transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
                 opacity 0.22s ease,
                 box-shadow 0.2s ease;
@@ -136,7 +135,6 @@ body {
     transform: scale(0.94);
 }
 
-/* FIX: rota al desaparecer + curva ease-in para el cierre */
 .chat-fab.active {
     animation: none;
     transform: scale(0) rotate(-45deg);
@@ -248,8 +246,6 @@ body {
 
 /* ===============================
    CHAT WIDGET — DESKTOP
-   FIX: transform-origin desde el FAB
-        curva spring 0.32s al abrir
 ================================ */
 .chat-widget {
     position: fixed;
@@ -266,7 +262,6 @@ body {
     overflow: hidden;
     z-index: 10000;
     opacity: 0;
-    /* FIX: scale más pronunciado + transform-origin desde esquina del FAB */
     transform: translateY(24px) scale(0.92);
     transform-origin: bottom right;
     will-change: transform, opacity;
@@ -275,7 +270,6 @@ body {
         0 8px 30px rgba(0, 0, 0, 0.12),
         0 16px 48px rgba(var(--chat-primary-rgb), 0.10),
         0 2px 6px rgba(0, 0, 0, 0.06);
-    /* FIX: curva spring para apertura */
     transition:
         opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
         transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
@@ -1075,9 +1069,10 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ===============================
    RESPONSIVE — MÓVIL (≤ 480px)
-   FIX: animación slide-up nativa
-        curvas distintas para abrir/cerrar
-        FAB con rotate al desaparecer
+   Animación slide-up manejada 100% por CSS.
+   El install script JS solo fija las dimensiones
+   del viewport del iframe, sin competir con
+   las transiciones CSS.
 ================================ */
 @media (max-width: 480px) {
 
@@ -1115,7 +1110,6 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         z-index: 9998;
     }
 
-    /* FIX: mantiene rotate + transición propia en móvil */
     .chat-fab.active {
         animation: none;
         transform: scale(0) rotate(-45deg);
@@ -1130,13 +1124,13 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     /* ─────────────────────────────────────────────────────
      * CHAT WIDGET MÓVIL
      *
-     * Estrategia:
-     *  • Ocupa 100dvh (excluye el teclado en Android Chrome).
-     *  • iOS lo ajusta el JS via visualViewport.
-     *  • Cerrado: translateY(100%) — fuera de pantalla abajo.
-     *  • Abierto:  translateY(0)   — desliza hacia arriba.
-     *  • Curvas distintas: spring al abrir, ease-in al cerrar.
-     *  • transform-origin: center bottom — anima desde abajo.
+     * El JS del install script fija el iframe al 100% del
+     * viewport sin transiciones. El CSS maneja la animación
+     * slide-up/down vía translateY para evitar jank por
+     * conflicto entre mutaciones de layout JS y transiciones CSS.
+     *
+     * Cerrado: translateY(100%) — fuera de pantalla abajo.
+     * Abierto:  translateY(0)   — desliza hacia arriba.
      * ───────────────────────────────────────────────────── */
     .chat-widget {
         position: fixed !important;
@@ -1149,6 +1143,7 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         height: 100dvh !important;
         max-height: 100dvh !important;
         min-height: unset !important;
+        /* FIX bordes: ningún borde redondeado en móvil */
         border-radius: 0 !important;
         border: none !important;
         transform: translateY(100%) !important;
@@ -1184,7 +1179,7 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
     /* ─────────────────────────────────────────────────────
      * main — área de mensajes
-     * flex: 1 1 0 + min-height: 0  →  CRÍTICO para que
+     * flex: 1 1 0 + min-height: 0 → CRÍTICO para que
      * el footer nunca quede tapado por el teclado virtual.
      * ───────────────────────────────────────────────────── */
     .chat-widget main {
@@ -1201,15 +1196,17 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         position: sticky !important;
         bottom: 0 !important;
         padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)) !important;
+        /* FIX bordes: sin redondeo en móvil */
         border-bottom-left-radius: 0 !important;
         border-bottom-right-radius: 0 !important;
         z-index: 2 !important;
         background: white !important;
     }
 
+    /* FIX bordes: header sin redondeo en móvil */
     .chat-header {
-        border-top-left-radius: 0;
-        border-top-right-radius: 0;
+        border-top-left-radius: 0 !important;
+        border-top-right-radius: 0 !important;
         padding-top: calc(14px + env(safe-area-inset-top));
         padding-left: 14px;
         padding-right: 14px;

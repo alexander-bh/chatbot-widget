@@ -100,10 +100,9 @@ export default function ChatbotWidget() {
     // FIX TECLADO VIRTUAL — scroll al último mensaje cuando
     // el teclado sube en Android/iOS
     //
-    // Por qué aquí y no en useChatbot:
-    //  • messagesRef viene de useChatbot pero el scroll es
-    //    responsabilidad de la vista (ChatbotWidget)
-    //  • Necesitamos acceso a inputRef para el evento focusin
+    // La animación de apertura/cierre en móvil la maneja el CSS
+    // (translateY con curva spring). Este hook solo gestiona
+    // el scroll al último mensaje cuando el teclado aparece.
     // ─────────────────────────────────────────────────────────────
     const scrollToBottom = (smooth = false) => {
         const el = chatbot.messagesRef?.current
