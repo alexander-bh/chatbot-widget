@@ -67,7 +67,7 @@ export default function ChatbotWidget() {
 
                 // FIX Bug 1: usar VITE_API_BASE_URL del entorno en lugar de apiBase
                 // del payload sin verificar — evita redirección a servidor atacante
-                const apiBase = import.meta.env.VITEAPIBASEURL
+                const apiBase = import.meta.env.VITE_API_BASE_URL 
                 if (!apiBase) throw new Error("VITE_API_BASE_URL no configurado")
 
                 const verifiedConfig = await verifyConfig(apiBase, payloadString, signature)
