@@ -1115,22 +1115,27 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     }
 
     /*
-     * FIX TECLADO VIRTUAL:
-     * Usamos dvh (dynamic viewport height) — se actualiza en tiempo real
-     * cuando el teclado sube/baja en iOS y Android Chrome.
-     * Fallback a 100vh para browsers que no soporten dvh.
+     * FIX TECLADO VIRTUAL — Android Chrome + iOS Safari
+     *
+     * Estrategia:
+     *  • El widget ocupa TODO el viewport disponible usando dvh
+     *    (dynamic viewport height). En Android Chrome, dvh ya
+     *    excluye el teclado. En iOS lo maneja visualViewport via JS.
+     *  • NO usamos bottom:0 junto con top:0 + height explícita,
+     *    porque en algunos browsers crean conflicto.
+     *  • El chat usa display:flex column → header fijo, main flex-1
+     *    con scroll, footer pegado abajo. Cuando el teclado sube,
+     *    dvh encoge el widget → main se encoge → footer sube visible.
      */
     .chat-widget {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        bottom: 0 !important;
+        bottom: auto !important;          /* sin bottom — evita conflicto con height */
         width: 100% !important;
-        /* Fallback para browsers sin soporte dvh */
-        height: 100vh !important;
-        /* dvh se encoge cuando aparece el teclado virtual */
-        height: 100dvh !important;
+        height: 100vh !important;         /* fallback */
+        height: 100dvh !important;        /* actualiza con teclado en Android */
         max-height: 100dvh !important;
         min-height: unset !important;
         border-radius: 0 !important;
@@ -1140,6 +1145,9 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         margin: 0 !important;
         pointer-events: none;
         visibility: hidden;
+        /* Optimización de compositing */
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
     }
 
     .chat-widget.open {
@@ -1149,38 +1157,48 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     }
 
     /*
-     * FIX: el chat (.chat) usa también dvh para que el flex
-     * se recalcule correctamente cuando sube el teclado
+     * .chat es el flex container interno.
+     * height:100% hereda el dvh del widget padre.
+     * overflow:hidden impide que el contenido desborde
+     * cuando el teclado redimensiona el viewport.
      */
-    .chat-widget.open .chat {
-        height: 100dvh;
-        max-height: 100dvh;
+    .chat-widget .chat {
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
     }
 
     /*
-     * FIX: main (área de mensajes) con min-height:0 permite
-     * que flex-shrink funcione y ceda espacio al footer/teclado
+     * main — área de mensajes.
+     * flex: 1 1 0  →  crece Y se encoge libremente.
+     * min-height: 0  →  CRÍTICO: sin esto flexbox no encoge
+     *                    correctamente y el footer queda tapado.
+     * scroll-padding-bottom: asegura que el último mensaje
+     * sea visible al hacer scrollIntoView cuando sube el teclado.
      */
-    .chat-widget.open main {
-        flex: 1 1 0;
-        min-height: 0;
-        overflow-y: auto;
+    .chat-widget main {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        /* Espacio extra para que el último msg no quede pegado al footer */
+        scroll-padding-bottom: 8px;
     }
 
     /*
-     * FIX: footer sticky al fondo del viewport dinámico.
-     * safe-area-inset-bottom cubre el home-indicator de iPhone.
+     * footer — siempre visible sobre el teclado.
+     * flex-shrink:0 → no se comprime nunca.
+     * position:sticky bottom:0 → se ancla al fondo del scroll container.
      */
-    .chat-widget.open footer {
-        flex-shrink: 0;
-        position: sticky;
-        bottom: 0;
-        /* Sube sobre el teclado en Android que no redimensiona */
-        padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px));
-        border-bottom-left-radius: 0;
-        border-bottom-right-radius: 0;
-        /* Evita que el footer quede debajo del teclado en iOS */
-        z-index: 1;
+    .chat-widget footer {
+        flex-shrink: 0 !important;
+        position: sticky !important;
+        bottom: 0 !important;
+        padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)) !important;
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+        z-index: 2 !important;
+        background: white !important;
     }
 
     .chat-header {
