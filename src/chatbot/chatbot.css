@@ -120,7 +120,10 @@ body {
     z-index: 10001;
     box-shadow: 0 4px 20px rgba(var(--chat-primary-rgb), 0.45), 0 2px 6px rgba(0, 0, 0, 0.12);
     animation: pulse 2.5s infinite;
-    transition: transform 0.2s ease, opacity 0.2s ease;
+    /* FIX: curva spring + sombra animada */
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.22s ease,
+                box-shadow 0.2s ease;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 }
@@ -133,23 +136,25 @@ body {
     transform: scale(0.94);
 }
 
+/* FIX: rota al desaparecer + curva ease-in para el cierre */
 .chat-fab.active {
     animation: none;
-    transform: scale(0);
+    transform: scale(0) rotate(-45deg);
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
+    transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1),
+                opacity 0.18s ease,
+                visibility 0s linear 0.22s;
 }
 
 @keyframes pulse {
     0% {
         box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0.5);
     }
-
     70% {
         box-shadow: 0 0 0 16px rgba(var(--chat-primary-rgb), 0);
     }
-
     100% {
         box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0);
     }
@@ -170,7 +175,6 @@ body {
 
 /* ===============================
    FAB BADGES & CONNECTION DOT
-   (fuera de media query — aplica en todos los tamaños)
 ================================ */
 .fab-badge {
     position: absolute;
@@ -243,7 +247,9 @@ body {
 }
 
 /* ===============================
-   CHAT WIDGET
+   CHAT WIDGET — DESKTOP
+   FIX: transform-origin desde el FAB
+        curva spring 0.32s al abrir
 ================================ */
 .chat-widget {
     position: fixed;
@@ -260,17 +266,20 @@ body {
     overflow: hidden;
     z-index: 10000;
     opacity: 0;
-    transform: translateY(18px) scale(0.95);
+    /* FIX: scale más pronunciado + transform-origin desde esquina del FAB */
+    transform: translateY(24px) scale(0.92);
+    transform-origin: bottom right;
     will-change: transform, opacity;
     border: 1px solid rgba(0, 0, 0, 0.08);
     box-shadow:
         0 8px 30px rgba(0, 0, 0, 0.12),
         0 16px 48px rgba(var(--chat-primary-rgb), 0.10),
         0 2px 6px rgba(0, 0, 0, 0.06);
+    /* FIX: curva spring para apertura */
     transition:
-        opacity 0.25s cubic-bezier(.2, .8, .2, 1),
-        transform 0.25s cubic-bezier(.2, .8, .2, 1),
-        visibility 0s linear 0.25s;
+        opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0s linear 0.32s;
 }
 
 .chat-widget.open {
@@ -279,8 +288,8 @@ body {
     opacity: 1;
     transform: translateY(0) scale(1);
     transition:
-        opacity 0.25s cubic-bezier(.2, .8, .2, 1),
-        transform 0.25s cubic-bezier(.2, .8, .2, 1),
+        opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
         visibility 0s;
 }
 
@@ -291,7 +300,6 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
-    /* FIX: respeta el safe-area del sistema */
     padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -482,7 +490,6 @@ main {
     background: var(--chat-bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    /* FIX: permite que el área de mensajes se encoja cuando sube el teclado */
     min-height: 0;
 }
 
@@ -1068,7 +1075,9 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ===============================
    RESPONSIVE — MÓVIL (≤ 480px)
-   FIX PRINCIPAL: teclado virtual
+   FIX: animación slide-up nativa
+        curvas distintas para abrir/cerrar
+        FAB con rotate al desaparecer
 ================================ */
 @media (max-width: 480px) {
 
@@ -1106,90 +1115,87 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         z-index: 9998;
     }
 
+    /* FIX: mantiene rotate + transición propia en móvil */
     .chat-fab.active {
         animation: none;
-        transform: scale(0);
+        transform: scale(0) rotate(-45deg);
         opacity: 0;
         pointer-events: none;
         visibility: hidden;
+        transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1),
+                    opacity 0.18s ease,
+                    visibility 0s linear 0.22s;
     }
 
-    /*
-     * FIX TECLADO VIRTUAL — Android Chrome + iOS Safari
+    /* ─────────────────────────────────────────────────────
+     * CHAT WIDGET MÓVIL
      *
      * Estrategia:
-     *  • El widget ocupa TODO el viewport disponible usando dvh
-     *    (dynamic viewport height). En Android Chrome, dvh ya
-     *    excluye el teclado. En iOS lo maneja visualViewport via JS.
-     *  • NO usamos bottom:0 junto con top:0 + height explícita,
-     *    porque en algunos browsers crean conflicto.
-     *  • El chat usa display:flex column → header fijo, main flex-1
-     *    con scroll, footer pegado abajo. Cuando el teclado sube,
-     *    dvh encoge el widget → main se encoge → footer sube visible.
-     */
+     *  • Ocupa 100dvh (excluye el teclado en Android Chrome).
+     *  • iOS lo ajusta el JS via visualViewport.
+     *  • Cerrado: translateY(100%) — fuera de pantalla abajo.
+     *  • Abierto:  translateY(0)   — desliza hacia arriba.
+     *  • Curvas distintas: spring al abrir, ease-in al cerrar.
+     *  • transform-origin: center bottom — anima desde abajo.
+     * ───────────────────────────────────────────────────── */
     .chat-widget {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        bottom: auto !important;          /* sin bottom — evita conflicto con height */
+        bottom: auto !important;
         width: 100% !important;
-        height: 100vh !important;         /* fallback */
-        height: 100dvh !important;        /* actualiza con teclado en Android */
+        height: 100vh !important;
+        height: 100dvh !important;
         max-height: 100dvh !important;
         min-height: unset !important;
         border-radius: 0 !important;
         border: none !important;
         transform: translateY(100%) !important;
+        transform-origin: center bottom !important;
         will-change: transform !important;
         margin: 0 !important;
         pointer-events: none;
         visibility: hidden;
-        /* Optimización de compositing */
         -webkit-backface-visibility: hidden;
         backface-visibility: hidden;
+        /* CIERRE: rápido, ease-in */
+        transition:
+            transform 0.28s cubic-bezier(0.4, 0, 1, 1),
+            visibility 0s linear 0.28s !important;
     }
 
     .chat-widget.open {
         transform: translateY(0) !important;
         pointer-events: auto;
         visibility: visible;
+        /* APERTURA: spring suave */
+        transition:
+            transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+            visibility 0s !important;
     }
 
-    /*
-     * .chat es el flex container interno.
-     * height:100% hereda el dvh del widget padre.
-     * overflow:hidden impide que el contenido desborde
-     * cuando el teclado redimensiona el viewport.
-     */
+    /* flex container interno — hereda dvh del padre */
     .chat-widget .chat {
         height: 100%;
         max-height: 100%;
         overflow: hidden;
     }
 
-    /*
-     * main — área de mensajes.
-     * flex: 1 1 0  →  crece Y se encoge libremente.
-     * min-height: 0  →  CRÍTICO: sin esto flexbox no encoge
-     *                    correctamente y el footer queda tapado.
-     * scroll-padding-bottom: asegura que el último mensaje
-     * sea visible al hacer scrollIntoView cuando sube el teclado.
-     */
+    /* ─────────────────────────────────────────────────────
+     * main — área de mensajes
+     * flex: 1 1 0 + min-height: 0  →  CRÍTICO para que
+     * el footer nunca quede tapado por el teclado virtual.
+     * ───────────────────────────────────────────────────── */
     .chat-widget main {
         flex: 1 1 0 !important;
         min-height: 0 !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
-        /* Espacio extra para que el último msg no quede pegado al footer */
         scroll-padding-bottom: 8px;
     }
 
-    /*
-     * footer — siempre visible sobre el teclado.
-     * flex-shrink:0 → no se comprime nunca.
-     * position:sticky bottom:0 → se ancla al fondo del scroll container.
-     */
+    /* footer siempre visible sobre el teclado */
     .chat-widget footer {
         flex-shrink: 0 !important;
         position: sticky !important;
@@ -1232,13 +1238,10 @@ main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
     .message-time { font-size: 10px; margin-top: 2px; }
 
-    footer {
-        padding: 9px 11px;
-        gap: 7px;
-    }
+    footer { padding: 9px 11px; gap: 7px; }
 
     #messageInput {
-        /* font-size ≥ 16px previene el zoom automático en iOS al hacer focus */
+        /* ≥ 16px previene zoom automático en iOS al hacer focus */
         font-size: 16px;
         padding: 10px 15px;
     }
