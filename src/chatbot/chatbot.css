@@ -169,8 +169,81 @@ body {
 }
 
 /* ===============================
+   FAB BADGES & CONNECTION DOT
+   (fuera de media query — aplica en todos los tamaños)
+================================ */
+.fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: white;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.45);
+    animation: badgePop 0.3s cubic-bezier(.2, .8, .2, 1);
+    z-index: 2;
+    line-height: 1;
+    pointer-events: none;
+}
+
+@keyframes badgePop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.fab-connection-dot {
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2.5px solid white;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.20);
+    pointer-events: none;
+    z-index: 2;
+    transition: background 0.4s ease;
+}
+
+.fab-connection-dot.connecting {
+    background: #f59e0b;
+    animation: dotPulse 1.2s infinite;
+}
+
+.fab-connection-dot.connected {
+    background: #22c55e;
+}
+
+.fab-connection-dot.error {
+    background: #ef4444;
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+/* ===============================
    CHAT WIDGET
-   — margen derecho y bordes redondeados visibles
 ================================ */
 .chat-widget {
     position: fixed;
@@ -188,6 +261,7 @@ body {
     z-index: 10000;
     opacity: 0;
     transform: translateY(18px) scale(0.95);
+    will-change: transform, opacity;
     border: 1px solid rgba(0, 0, 0, 0.08);
     box-shadow:
         0 8px 30px rgba(0, 0, 0, 0.12),
@@ -217,6 +291,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
+    /* FIX: respeta el safe-area del sistema */
     padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -313,15 +388,8 @@ body {
 }
 
 @keyframes onlinePulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
 }
 
 .chat-actions {
@@ -414,6 +482,8 @@ main {
     background: var(--chat-bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    /* FIX: permite que el área de mensajes se encoja cuando sube el teclado */
+    min-height: 0;
 }
 
 .msg {
@@ -430,7 +500,6 @@ main {
         opacity: 0;
         transform: translateY(10px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -459,40 +528,23 @@ main {
     animation: typingBounce 1.4s infinite ease-in-out both;
 }
 
-.typing-dots span:nth-child(1) {
-    animation-delay: -0.32s;
-}
-
-.typing-dots span:nth-child(2) {
-    animation-delay: -0.16s;
-}
-
-.typing-dots span:nth-child(3) {
-    animation-delay: 0s;
-}
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0s; }
 
 @keyframes typingBounce {
-
-    0%,
-    80%,
-    100% {
+    0%, 80%, 100% {
         transform: scale(0.65);
         opacity: 0.4;
     }
-
     40% {
         transform: scale(1.1);
         opacity: 1;
     }
 }
 
-.msg.bot {
-    justify-content: flex-start;
-}
-
-.msg.user {
-    justify-content: flex-end;
-}
+.msg.bot  { justify-content: flex-start; }
+.msg.user { justify-content: flex-end; }
 
 .msg-avatar {
     width: 32px;
@@ -578,13 +630,8 @@ main {
     font-family: var(--font);
 }
 
-.msg.user .message-time {
-    text-align: right;
-}
-
-.msg.bot .message-time {
-    text-align: left;
-}
+.msg.user .message-time { text-align: right; }
+.msg.bot  .message-time { text-align: left; }
 
 /* ===============================
    RICH TEXT
@@ -597,25 +644,12 @@ main {
     line-height: 1.3;
 }
 
-.msg.bot .bubble h1 {
-    font-size: 17px;
-}
+.msg.bot .bubble h1 { font-size: 17px; }
+.msg.bot .bubble h2 { font-size: 15px; }
+.msg.bot .bubble h3 { font-size: 14px; }
 
-.msg.bot .bubble h2 {
-    font-size: 15px;
-}
-
-.msg.bot .bubble h3 {
-    font-size: 14px;
-}
-
-.msg.bot .bubble p {
-    margin: 0 0 4px;
-}
-
-.msg.bot .bubble p:last-child {
-    margin-bottom: 0;
-}
+.msg.bot .bubble p { margin: 0 0 4px; }
+.msg.bot .bubble p:last-child { margin-bottom: 0; }
 
 .msg.bot .bubble blockquote {
     margin: 4px 0;
@@ -639,22 +673,10 @@ main {
     line-height: 1.5;
 }
 
-.msg.bot .bubble strong {
-    font-weight: 800;
-}
-
-.msg.bot .bubble em {
-    font-style: italic;
-}
-
-.msg.bot .bubble u {
-    text-decoration: underline;
-}
-
-.msg.bot .bubble s {
-    text-decoration: line-through;
-    color: #6b7280;
-}
+.msg.bot .bubble strong { font-weight: 800; }
+.msg.bot .bubble em     { font-style: italic; }
+.msg.bot .bubble u      { text-decoration: underline; }
+.msg.bot .bubble s      { text-decoration: line-through; color: #6b7280; }
 
 .msg.bot .bubble code {
     background: #f1f5f9;
@@ -693,22 +715,10 @@ main {
     transition: background 0.18s;
 }
 
-.link-action:hover {
-    background: rgba(var(--chat-primary-rgb), 0.16);
-}
-
-.link-whatsapp {
-    background: #25d36618;
-    color: #128c7e;
-}
-
-.link-phone {
-    background: rgba(var(--chat-primary-rgb), 0.09);
-}
-
-.link-email {
-    background: #6366f118;
-}
+.link-action:hover         { background: rgba(var(--chat-primary-rgb), 0.16); }
+.link-whatsapp             { background: #25d36618; color: #128c7e; }
+.link-phone                { background: rgba(var(--chat-primary-rgb), 0.09); }
+.link-email                { background: #6366f118; }
 
 /* ===============================
    MEDIA
@@ -726,15 +736,8 @@ main {
     width: 100%;
 }
 
-.media-grid.count-1 {
-    grid-template-columns: 1fr;
-}
-
-.media-grid.count-1 .media-item {
-    aspect-ratio: auto;
-    max-height: 240px;
-}
-
+.media-grid.count-1 { grid-template-columns: 1fr; }
+.media-grid.count-1 .media-item { aspect-ratio: auto; max-height: 240px; }
 .media-grid.count-1 .media-item img,
 .media-grid.count-1 .media-item video {
     object-fit: contain;
@@ -743,36 +746,17 @@ main {
     width: 100%;
 }
 
-.media-grid.count-2 {
-    grid-template-columns: 1fr 1fr;
-}
+.media-grid.count-2 { grid-template-columns: 1fr 1fr; }
+.media-grid.count-2 .media-item { aspect-ratio: 4/3; }
 
-.media-grid.count-2 .media-item {
-    aspect-ratio: 4/3;
-}
-
-.media-grid.count-3 {
-    grid-template-columns: 1fr 1fr;
-}
-
-.media-grid.count-3 .media-item:first-child {
-    grid-column: 1 / 3;
-    aspect-ratio: 16/7;
-}
-
-.media-grid.count-3 .media-item:not(:first-child) {
-    aspect-ratio: 4/3;
-}
+.media-grid.count-3 { grid-template-columns: 1fr 1fr; }
+.media-grid.count-3 .media-item:first-child { grid-column: 1 / 3; aspect-ratio: 16/7; }
+.media-grid.count-3 .media-item:not(:first-child) { aspect-ratio: 4/3; }
 
 .media-grid.count-4,
-.media-grid.count-more {
-    grid-template-columns: 1fr 1fr;
-}
-
+.media-grid.count-more { grid-template-columns: 1fr 1fr; }
 .media-grid.count-4 .media-item,
-.media-grid.count-more .media-item {
-    aspect-ratio: 4/3;
-}
+.media-grid.count-more .media-item { aspect-ratio: 4/3; }
 
 .media-item {
     position: relative;
@@ -791,9 +775,7 @@ main {
     transition: transform 0.2s ease;
 }
 
-.media-item:hover img {
-    transform: scale(1.04);
-}
+.media-item:hover img { transform: scale(1.04); }
 
 .media-item.has-more-overlay::after {
     content: attr(data-more);
@@ -809,9 +791,7 @@ main {
     font-family: var(--font);
 }
 
-.msg.bot.media-msg .msg-content {
-    max-width: calc(100% - 42px);
-}
+.msg.bot.media-msg .msg-content { max-width: calc(100% - 42px); }
 
 .msg.bot.media-msg .bubble {
     padding: 0;
@@ -947,9 +927,7 @@ main {
     border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-.viewer-close:hover {
-    background: rgba(255, 255, 255, 0.26);
-}
+.viewer-close:hover { background: rgba(255, 255, 255, 0.26); }
 
 .chat-image-viewer.open {
     opacity: 1;
@@ -1062,9 +1040,7 @@ footer {
     box-shadow: 0 5px 18px rgba(var(--chat-primary-rgb), 0.45);
 }
 
-#sendBtn:active:not(:disabled) {
-    transform: scale(0.93);
-}
+#sendBtn:active:not(:disabled) { transform: scale(0.93); }
 
 #sendBtn:disabled {
     opacity: 0.42;
@@ -1075,22 +1051,10 @@ footer {
 /* ===============================
    SCROLLBAR
 ================================ */
-main::-webkit-scrollbar {
-    width: 3px;
-}
-
-main::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-main::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-main::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
+main::-webkit-scrollbar       { width: 3px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ===============================
    RESPONSIVE — TABLET (481–768px)
@@ -1104,6 +1068,7 @@ main::-webkit-scrollbar-thumb:hover {
 
 /* ===============================
    RESPONSIVE — MÓVIL (≤ 480px)
+   FIX PRINCIPAL: teclado virtual
 ================================ */
 @media (max-width: 480px) {
 
@@ -1130,91 +1095,6 @@ main::-webkit-scrollbar-thumb:hover {
         border-left: none;
     }
 
-    /* ===============================
-   FAB BADGES & CONNECTION DOT
-================================ */
-
-    /* Badge de notificaciones — esquina superior derecha */
-    .fab-badge {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        min-width: 20px;
-        height: 20px;
-        padding: 0 5px;
-        border-radius: 999px;
-        background: #ef4444;
-        color: white;
-        font-size: 11px;
-        font-weight: 800;
-        font-family: var(--font);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid white;
-        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.45);
-        animation: badgePop 0.3s cubic-bezier(.2, .8, .2, 1);
-        z-index: 2;
-        line-height: 1;
-        pointer-events: none;
-    }
-
-    @keyframes badgePop {
-        0% {
-            transform: scale(0);
-            opacity: 0;
-        }
-
-        70% {
-            transform: scale(1.2);
-        }
-
-        100% {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
-
-    /* Dot de conexión — esquina inferior derecha */
-    .fab-connection-dot {
-        position: absolute;
-        bottom: 1px;
-        right: 1px;
-        width: 13px;
-        height: 13px;
-        border-radius: 50%;
-        border: 2.5px solid white;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.20);
-        pointer-events: none;
-        z-index: 2;
-        transition: background 0.4s ease;
-    }
-
-    .fab-connection-dot.connecting {
-        background: #f59e0b;
-        animation: dotPulse 1.2s infinite;
-    }
-
-    .fab-connection-dot.connected {
-        background: #22c55e;
-    }
-
-    .fab-connection-dot.error {
-        background: #ef4444;
-    }
-
-    @keyframes dotPulse {
-
-        0%,
-        100% {
-            opacity: 1;
-        }
-
-        50% {
-            opacity: 0.4;
-        }
-    }
-
     .chat-fab {
         bottom: 0;
         right: 0;
@@ -1234,7 +1114,12 @@ main::-webkit-scrollbar-thumb:hover {
         visibility: hidden;
     }
 
-    /* Full screen en móvil */
+    /*
+     * FIX TECLADO VIRTUAL:
+     * Usamos dvh (dynamic viewport height) — se actualiza en tiempo real
+     * cuando el teclado sube/baja en iOS y Android Chrome.
+     * Fallback a 100vh para browsers que no soporten dvh.
+     */
     .chat-widget {
         position: fixed !important;
         top: 0 !important;
@@ -1242,12 +1127,16 @@ main::-webkit-scrollbar-thumb:hover {
         right: 0 !important;
         bottom: 0 !important;
         width: 100% !important;
-        height: 100% !important;
-        max-height: 100% !important;
-        min-height: 100% !important;
+        /* Fallback para browsers sin soporte dvh */
+        height: 100vh !important;
+        /* dvh se encoge cuando aparece el teclado virtual */
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        min-height: unset !important;
         border-radius: 0 !important;
         border: none !important;
         transform: translateY(100%) !important;
+        will-change: transform !important;
         margin: 0 !important;
         pointer-events: none;
         visibility: hidden;
@@ -1259,6 +1148,41 @@ main::-webkit-scrollbar-thumb:hover {
         visibility: visible;
     }
 
+    /*
+     * FIX: el chat (.chat) usa también dvh para que el flex
+     * se recalcule correctamente cuando sube el teclado
+     */
+    .chat-widget.open .chat {
+        height: 100dvh;
+        max-height: 100dvh;
+    }
+
+    /*
+     * FIX: main (área de mensajes) con min-height:0 permite
+     * que flex-shrink funcione y ceda espacio al footer/teclado
+     */
+    .chat-widget.open main {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    /*
+     * FIX: footer sticky al fondo del viewport dinámico.
+     * safe-area-inset-bottom cubre el home-indicator de iPhone.
+     */
+    .chat-widget.open footer {
+        flex-shrink: 0;
+        position: sticky;
+        bottom: 0;
+        /* Sube sobre el teclado en Android que no redimensiona */
+        padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px));
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        /* Evita que el footer quede debajo del teclado en iOS */
+        z-index: 1;
+    }
+
     .chat-header {
         border-top-left-radius: 0;
         border-top-right-radius: 0;
@@ -1267,37 +1191,17 @@ main::-webkit-scrollbar-thumb:hover {
         padding-right: 14px;
     }
 
-    .chat-avatar {
-        width: 38px;
-        height: 38px;
-    }
+    .chat-avatar { width: 38px; height: 38px; }
+    .chat-header strong { font-size: 15px; }
 
-    .chat-header strong {
-        font-size: 15px;
-    }
+    main { padding: 14px 10px 10px; }
 
-    main {
-        padding: 14px 10px 10px;
-    }
+    .msg { gap: 7px; margin-bottom: 12px; }
 
-    .msg {
-        gap: 7px;
-        margin-bottom: 12px;
-    }
+    .msg-avatar { width: 28px; height: 28px; min-width: 28px; }
 
-    .msg-avatar {
-        width: 28px;
-        height: 28px;
-        min-width: 28px;
-    }
-
-    .msg-content {
-        max-width: calc(100% - 44px);
-    }
-
-    .msg.user .msg-content {
-        max-width: 78%;
-    }
+    .msg-content { max-width: calc(100% - 44px); }
+    .msg.user .msg-content { max-width: 78%; }
 
     .bubble {
         padding: 10px 13px;
@@ -1305,37 +1209,23 @@ main::-webkit-scrollbar-thumb:hover {
         border-radius: 16px;
     }
 
-    .msg.bot .bubble {
-        border-bottom-left-radius: 4px;
-    }
+    .msg.bot .bubble  { border-bottom-left-radius: 4px; }
+    .msg.user .bubble { border-bottom-right-radius: 4px; padding: 10px 15px; }
 
-    .msg.user .bubble {
-        border-bottom-right-radius: 4px;
-        padding: 10px 15px;
-    }
-
-    .message-time {
-        font-size: 10px;
-        margin-top: 2px;
-    }
+    .message-time { font-size: 10px; margin-top: 2px; }
 
     footer {
         padding: 9px 11px;
-        padding-bottom: calc(9px + env(safe-area-inset-bottom));
         gap: 7px;
-        border-bottom-left-radius: 0;
-        border-bottom-right-radius: 0;
     }
 
     #messageInput {
+        /* font-size ≥ 16px previene el zoom automático en iOS al hacer focus */
         font-size: 16px;
         padding: 10px 15px;
     }
 
-    #sendBtn {
-        width: 42px;
-        height: 42px;
-    }
+    #sendBtn { width: 42px; height: 42px; }
 
     .bubble.options button {
         min-height: 46px;
@@ -1344,74 +1234,34 @@ main::-webkit-scrollbar-thumb:hover {
     }
 
     .chat-close,
-    .chat-restart {
-        min-width: 44px;
-        min-height: 44px;
-    }
+    .chat-restart { min-width: 44px; min-height: 44px; }
 
-    .msg.bot.media-msg .msg-content {
-        max-width: calc(100% - 38px);
-    }
+    .msg.bot.media-msg .msg-content { max-width: calc(100% - 38px); }
 
-    .media-grid.count-1 .media-item {
-        max-height: 200px;
-    }
-
+    .media-grid.count-1 .media-item { max-height: 200px; }
     .media-grid.count-1 .media-item img,
-    .media-grid.count-1 .media-item video {
-        max-height: 200px;
-    }
+    .media-grid.count-1 .media-item video { max-height: 200px; }
 }
 
 /* Extra small < 360px */
 @media (max-width: 360px) {
-    .msg-content {
-        max-width: calc(100% - 38px);
-    }
-
-    .msg.user .msg-content {
-        max-width: 76%;
-    }
-
-    .bubble {
-        font-size: 13px;
-        padding: 9px 12px;
-    }
-
-    .chat-header strong {
-        font-size: 14px;
-    }
-
-    .chat-status {
-        font-size: 11px;
-    }
+    .msg-content { max-width: calc(100% - 38px); }
+    .msg.user .msg-content { max-width: 76%; }
+    .bubble { font-size: 13px; padding: 9px 12px; }
+    .chat-header strong { font-size: 14px; }
+    .chat-status { font-size: 11px; }
 }
 
 /* ===============================
    ACCESSIBILITY
 ================================ */
 @media (prefers-reduced-motion: reduce) {
-    .chat-fab {
-        animation: none;
-    }
-
-    .chat-status::before {
-        animation: none;
-    }
-
+    .chat-fab { animation: none; }
+    .chat-status::before { animation: none; }
     .chat-welcome,
-    .chat-widget {
-        transition: opacity 0.15s ease, visibility 0s;
-    }
-
-    .msg {
-        animation: none;
-    }
-
-    .typing-dots span {
-        animation: none;
-        opacity: 0.6;
-    }
+    .chat-widget { transition: opacity 0.15s ease, visibility 0s; }
+    .msg { animation: none; }
+    .typing-dots span { animation: none; opacity: 0.6; }
 }
 
 .chat-fab:focus-visible,
