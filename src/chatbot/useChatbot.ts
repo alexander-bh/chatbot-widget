@@ -554,18 +554,35 @@ export function useChatbot(config: ChatbotConfig | null) {
             return
         }
 
-        const bubbleElement = node.content
-            ? renderBotMessage(node.content)
-            : (() => { const b = renderBotMessage(""); b.classList.add("media-only"); return b })()
-
         if (nodeType === "media" && Array.isArray(node.media)) {
+
+            const bubbleElement = (() => {
+                const b = renderBotMessage("")
+                b.classList.add("media-only")
+                b.style.minHeight = "0"
+                return b
+            })()
+
+            if (node.content) {
+                const caption = document.createElement("div")
+                caption.className = "media-caption"
+                caption.textContent = node.content
+                bubbleElement.prepend(caption)
+                bubbleElement.classList.remove("media-only")
+            }
+
             renderMediaCarousel(node.media, bubbleElement)
+
             if (node.end_conversation) { disableInput(); return }
             disableInput()
             await new Promise(r => setTimeout(r, 400))
             await autoAdvance()
             return
         }
+
+        const bubbleElement = node.content
+            ? renderBotMessage(node.content)
+            : (() => { const b = renderBotMessage(""); b.classList.add("media-only"); return b })()
 
         if ((nodeType === "options" && node.options?.length) ||
             (nodeType === "policy" && node.policy?.length)) {
