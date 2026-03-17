@@ -121,11 +121,25 @@ export function useChatbot(config: ChatbotConfig | null) {
     const [viewerUrl, setViewerUrl] = useState("")
     const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
+    const appendServerErrorRef = useRef<() => void>(() => { })
+    const errorMsgRef = useRef<HTMLDivElement | null>(null)
+    const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const processRef = useRef<((node: ChatNode, depth: number, sendFn: (v: string) => Promise<void>) => Promise<void>) | null>(null)
+    const sendRef = useRef<((v?: string) => Promise<void>) | null>(null)
+
+
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        3. CALLBACKS BÁSICOS (sin dependencias de otros callbacks)
        Deben ir ANTES de los useEffect que los usan
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+    const clearRetryInterval = useCallback(() => {
+        if (retryIntervalRef.current) {
+            clearInterval(retryIntervalRef.current)
+            retryIntervalRef.current = null
+        }
+    }, [])
 
     const scrollToBottom = useCallback(() => {
         requestAnimationFrame(() => {
@@ -145,6 +159,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         setSendDisabled(false)
         setTimeout(() => inputRef.current?.focus(), 50)
     }, [])
+
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        4. EFFECTS
@@ -506,6 +521,92 @@ export function useChatbot(config: ChatbotConfig | null) {
         [disableInput, appendMessage]
     )
 
+    const appendServerError = useCallback(() => {
+        if (!messagesRef.current) return
+        if (errorMsgRef.current) return  // ya hay uno visible, no duplicar
+
+        const m = document.createElement("div")
+        m.className = "msg bot error-server"
+
+        const avatarImg = document.createElement("img")
+        avatarImg.src = config?.avatar ?? ""
+        avatarImg.className = "msg-avatar"
+
+        const contentWrapper = document.createElement("div")
+        contentWrapper.className = "msg-content"
+
+        const bubble = document.createElement("div")
+        bubble.className = "bubble bubble-server-error"
+        bubble.innerHTML = `
+        <div class="server-error-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12H3a9 9 0 1 0 3-6.7"/>
+                <polyline points="3 3 3 9 9 9"/>
+            </svg>
+        </div>
+        <p class="server-error-title">Sin conexión al servidor</p>
+        <p class="server-error-sub">Intentando reconectar<span class="retry-dots"></span></p>
+    `
+
+        const timeEl = document.createElement("div")
+        timeEl.className = "message-time"
+        timeEl.textContent = getTime()
+
+        contentWrapper.append(bubble, timeEl)
+        m.append(avatarImg, contentWrapper)
+        messagesRef.current.appendChild(m)
+        errorMsgRef.current = m
+        scrollToBottom()
+
+        // Animación de puntos
+        const dotsEl = bubble.querySelector(".retry-dots") as HTMLElement
+        let dotCount = 0
+        const dotsInterval = setInterval(() => {
+            dotCount = (dotCount + 1) % 4
+            if (dotsEl) dotsEl.textContent = ".".repeat(dotCount)
+        }, 500)
+
+        // Reintentar cada 5s
+        retryIntervalRef.current = setInterval(async () => {
+            try {
+                const r = await fetch(
+                    `${config!.apiBase}/api/public-chatbot/chatbot-conversation/${config!.publicId}/start`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ origin_url: config!.originDomain, visitor_id: getVisitorId() })
+                    }
+                )
+                if (!r.ok) return  // sigue esperando
+
+                const d: ChatNode = await r.json()
+
+                // ✅ Servidor restaurado — limpiar error y reiniciar
+                clearInterval(dotsInterval)
+                clearRetryInterval()
+                errorMsgRef.current?.remove()
+                errorMsgRef.current = null
+                if (messagesRef.current) messagesRef.current.innerHTML = ""
+
+                sessionIdRef.current = d.session_id!
+                setSessionId(d.session_id!)
+                localStorage.setItem(`chat_session_${config!.publicId}`, d.session_id!)
+                setStatusText("En línea")
+                setConnectionStatus("connected")
+                processRef.current?.(d, 0, sendRef.current!)
+
+            } catch {
+                // sigue esperando, no hacer nada
+            }
+        }, 5000)
+
+        // Limpiar dotsInterval si el componente se desmonta
+        return () => {
+            clearInterval(dotsInterval)
+        }
+    }, [config, scrollToBottom, clearRetryInterval])
+
     const process = useCallback(async (
         node: ChatNode,
         depth = 0,
@@ -542,7 +643,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                 if (!nextNode || nextNode.completed) { disableInput(); return }
                 return process(nextNode, depth + 1, sendFn)
             } catch {
-                appendMessage("bot", "Error al continuar el flujo.", true)
+                appendServerErrorRef.current()
             }
         }
 
@@ -643,11 +744,15 @@ export function useChatbot(config: ChatbotConfig | null) {
             await process(nextNode, 0, send)
         } catch {
             hideTyping()
-            appendMessage("bot", "Error al enviar el mensaje", true)
+            appendServerErrorRef.current()
             enableInput()
         }
         sendingRef.current = false
     }, [config, appendMessage, disableInput, enableInput, hideTyping, process])
+
+    useEffect(() => { appendServerErrorRef.current = appendServerError }, [appendServerError])
+    useEffect(() => { processRef.current = process }, [process])
+    useEffect(() => { sendRef.current = send }, [send])
 
     const start = useCallback(async () => {
         if (!config) return
@@ -674,9 +779,9 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
             setStatusText("Error")
             setConnectionStatus("error")
-            appendMessage("bot", "No pude conectarme al servidor", true)
+            appendServerErrorRef.current()
         }
-    }, [config, showTyping, hideTyping, appendMessage, process, send])
+    }, [config, showTyping, hideTyping, process, send])
 
     const toggle = useCallback(() => {
         if (!config) return
@@ -703,6 +808,9 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [])
 
     const restart = useCallback(async () => {
+        clearRetryInterval()           
+        errorMsgRef.current?.remove()
+        errorMsgRef.current = null    
         sessionIdRef.current = null
         setSessionId(null)
         if (config) {
@@ -716,7 +824,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         setStatusText("Reiniciando…")
         startedRef.current = true
         await start()
-    }, [config, disableInput, start])
+    }, [config, disableInput, start,clearRetryInterval])
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        6. RETURN ANTICIPADO (después de todos los hooks)
