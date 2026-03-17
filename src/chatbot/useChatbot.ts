@@ -244,7 +244,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     useEffect(() => {
         if (!config?.welcomeMessage) return
         const isMobile = matchMedia("(max-width:480px)").matches
-        if (isMobile && !config.showWelcomeOnMobile) return
+        if (isMobile && config.showWelcomeOnMobile === false) return
 
         const delay = (config.welcomeDelay ?? 2) * 1000
 
