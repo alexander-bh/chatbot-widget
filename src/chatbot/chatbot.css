@@ -766,56 +766,62 @@ main {
 .link-actions {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 7px;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .link-action {
-    padding: 7px 12px;
-    border-radius: 9px;
-    background: rgba(var(--chat-primary-rgb), 0.08);
-    color: var(--chat-primary);
+    padding: 9px 14px;
+    border-radius: 999px;           /* ← pill shape como en la imagen */
+    border: 1.5px solid #e5e7eb;
+    background: #f8fafc;
+    color: #374151;                  /* ← color neutro para el texto */
     font-weight: 600;
     text-decoration: none;
-    text-align: center;
     font-family: var(--font);
     font-size: 13.5px;
-    transition: background 0.18s;
+    transition: all 0.18s ease;
     display: flex;
     align-items: center;
     gap: 10px;
+    text-align: left;
 }
+
+.link-action:hover {
+    background: white;
+    border-color: var(--chat-primary);
+    box-shadow: 0 2px 10px rgba(var(--chat-primary-rgb), 0.12);
+}
+
+/* Quitar overrides de color de fondo por tipo */
+.link-whatsapp { background: #f8fafc; color: #374151; }
+.link-phone    { background: #f8fafc; color: #374151; }
+.link-email    { background: #f8fafc; color: #374151; }
+.link-link     { background: #f8fafc; color: #374151; }
+
+/* Colores de íconos por tipo */
+.link-email    .link-action-icon { color: #960f0f; }
+.link-whatsapp .link-action-icon { color: #25d366; }
+.link-phone    .link-action-icon { color: #09702f; }
+.link-link     .link-action-icon { color: #05327b; }
 
 .link-action-icon {
     display: flex;
     align-items: center;
     flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
+
+.link-action-icon svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
 .link-action-label {
     font-weight: 600;
-}
-
-.link-email .link-action-icon   { color: #900404; }
-.link-whatsapp .link-action-icon { color: #42b66c; }
-.link-phone .link-action-icon   { color: #046026; }
-.link-link .link-action-icon    { color: #033678 }
-
-.link-action:hover {
-    background: rgba(var(--chat-primary-rgb), 0.16);
-}
-
-.link-whatsapp {
-    background: #25d36618;
-    color: #128c7e;
-}
-
-.link-phone {
-    background: rgba(var(--chat-primary-rgb), 0.09);
-}
-
-.link-email {
-    background: #6366f118;
+    flex: 1;
 }
 
 /* ===============================
