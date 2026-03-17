@@ -124,7 +124,6 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Agrega esta clase nueva */
 .chat-fab.no-transition {
     transition: none !important;
     animation: none !important;
@@ -143,22 +142,13 @@ body {
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
-    transition: opacity 0.18s ease,
-        visibility 0s linear 0.18s;
+    transition: opacity 0.18s ease, visibility 0s linear 0.18s;
 }
 
 @keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0.5);
-    }
-
-    70% {
-        box-shadow: 0 0 0 16px rgba(var(--chat-primary-rgb), 0);
-    }
-
-    100% {
-        box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0);
-    }
+    0%   { box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0.5); }
+    70%  { box-shadow: 0 0 0 16px rgba(var(--chat-primary-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--chat-primary-rgb), 0); }
 }
 
 .chat-avatar-fab {
@@ -202,19 +192,9 @@ body {
 }
 
 @keyframes badgePop {
-    0% {
-        transform: scale(0);
-        opacity: 0;
-    }
-
-    70% {
-        transform: scale(1.2);
-    }
-
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
+    0%   { transform: scale(0); opacity: 0; }
+    70%  { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .fab-connection-dot {
@@ -236,24 +216,12 @@ body {
     animation: dotPulse 1.2s infinite;
 }
 
-.fab-connection-dot.connected {
-    background: #22c55e;
-}
-
-.fab-connection-dot.error {
-    background: #ef4444;
-}
+.fab-connection-dot.connected { background: #22c55e; }
+.fab-connection-dot.error     { background: #ef4444; }
 
 @keyframes dotPulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.4;
-    }
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
 }
 
 /* ===============================
@@ -402,15 +370,8 @@ body {
 }
 
 @keyframes onlinePulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
 }
 
 .chat-actions {
@@ -516,15 +477,8 @@ main {
 }
 
 @keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .msg.typing .bubble {
@@ -549,40 +503,17 @@ main {
     animation: typingBounce 1.4s infinite ease-in-out both;
 }
 
-.typing-dots span:nth-child(1) {
-    animation-delay: -0.32s;
-}
-
-.typing-dots span:nth-child(2) {
-    animation-delay: -0.16s;
-}
-
-.typing-dots span:nth-child(3) {
-    animation-delay: 0s;
-}
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0s; }
 
 @keyframes typingBounce {
-
-    0%,
-    80%,
-    100% {
-        transform: scale(0.65);
-        opacity: 0.4;
-    }
-
-    40% {
-        transform: scale(1.1);
-        opacity: 1;
-    }
+    0%, 80%, 100% { transform: scale(0.65); opacity: 0.4; }
+    40%            { transform: scale(1.1);  opacity: 1; }
 }
 
-.msg.bot {
-    justify-content: flex-start;
-}
-
-.msg.user {
-    justify-content: flex-end;
-}
+.msg.bot  { justify-content: flex-start; }
+.msg.user { justify-content: flex-end; }
 
 .msg-avatar {
     width: 32px;
@@ -668,13 +599,8 @@ main {
     font-family: var(--font);
 }
 
-.msg.user .message-time {
-    text-align: right;
-}
-
-.msg.bot .message-time {
-    text-align: left;
-}
+.msg.user .message-time { text-align: right; }
+.msg.bot  .message-time { text-align: left; }
 
 /* ===============================
    RICH TEXT
@@ -687,25 +613,12 @@ main {
     line-height: 1.3;
 }
 
-.msg.bot .bubble h1 {
-    font-size: 17px;
-}
+.msg.bot .bubble h1 { font-size: 17px; }
+.msg.bot .bubble h2 { font-size: 15px; }
+.msg.bot .bubble h3 { font-size: 14px; }
 
-.msg.bot .bubble h2 {
-    font-size: 15px;
-}
-
-.msg.bot .bubble h3 {
-    font-size: 14px;
-}
-
-.msg.bot .bubble p {
-    margin: 0 0 4px;
-}
-
-.msg.bot .bubble p:last-child {
-    margin-bottom: 0;
-}
+.msg.bot .bubble p { margin: 0 0 4px; }
+.msg.bot .bubble p:last-child { margin-bottom: 0; }
 
 .msg.bot .bubble blockquote {
     margin: 4px 0;
@@ -729,22 +642,10 @@ main {
     line-height: 1.5;
 }
 
-.msg.bot .bubble strong {
-    font-weight: 800;
-}
-
-.msg.bot .bubble em {
-    font-style: italic;
-}
-
-.msg.bot .bubble u {
-    text-decoration: underline;
-}
-
-.msg.bot .bubble s {
-    text-decoration: line-through;
-    color: #6b7280;
-}
+.msg.bot .bubble strong { font-weight: 800; }
+.msg.bot .bubble em     { font-style: italic; }
+.msg.bot .bubble u      { text-decoration: underline; }
+.msg.bot .bubble s      { text-decoration: line-through; color: #6b7280; }
 
 .msg.bot .bubble code {
     background: #f1f5f9;
@@ -763,6 +664,9 @@ main {
     text-decoration: underline;
 }
 
+/* ===============================
+   LINK ACTIONS
+================================ */
 .link-actions {
     display: flex;
     flex-direction: column;
@@ -772,10 +676,10 @@ main {
 
 .link-action {
     padding: 9px 14px;
-    border-radius: 999px;           /* ← pill shape como en la imagen */
+    border-radius: 999px;
     border: 1.5px solid #e5e7eb;
     background: #f8fafc;
-    color: #374151;                  /* ← color neutro para el texto */
+    color: #374151;
     font-weight: 600;
     text-decoration: none;
     font-family: var(--font);
@@ -793,13 +697,11 @@ main {
     box-shadow: 0 2px 10px rgba(var(--chat-primary-rgb), 0.12);
 }
 
-/* Quitar overrides de color de fondo por tipo */
 .link-whatsapp { background: #f8fafc; color: #374151; }
 .link-phone    { background: #f8fafc; color: #374151; }
 .link-email    { background: #f8fafc; color: #374151; }
 .link-link     { background: #f8fafc; color: #374151; }
 
-/* Colores de íconos por tipo */
 .link-email    .link-action-icon { color: #960f0f; }
 .link-whatsapp .link-action-icon { color: #25d366; }
 .link-phone    .link-action-icon { color: #09702f; }
@@ -825,7 +727,7 @@ main {
 }
 
 /* ===============================
-   MEDIA
+   MEDIA — skeleton loader estilo WhatsApp
 ================================ */
 .media-carousel-wrapper {
     position: relative;
@@ -840,80 +742,113 @@ main {
     width: 100%;
 }
 
-.media-grid.count-1 {
-    grid-template-columns: 1fr;
-}
-
-.media-grid.count-1 .media-item {
-    aspect-ratio: auto;
-    max-height: 240px;
-}
-
+.media-grid.count-1 { grid-template-columns: 1fr; }
+.media-grid.count-1 .media-item { aspect-ratio: auto; max-height: 240px; }
 .media-grid.count-1 .media-item img,
 .media-grid.count-1 .media-item video {
-    object-fit: contain;
+    object-fit: contain !important;
     max-height: 240px;
     height: auto;
     width: 100%;
 }
 
-.media-grid.count-2 {
-    grid-template-columns: 1fr 1fr;
-}
+.media-grid.count-2 { grid-template-columns: 1fr 1fr; }
+.media-grid.count-2 .media-item { aspect-ratio: 4/3; }
 
-.media-grid.count-2 .media-item {
-    aspect-ratio: 4/3;
-}
-
-.media-grid.count-3 {
-    grid-template-columns: 1fr 1fr;
-}
-
-.media-grid.count-3 .media-item:first-child {
-    grid-column: 1 / 3;
-    aspect-ratio: 16/7;
-}
-
-.media-grid.count-3 .media-item:not(:first-child) {
-    aspect-ratio: 4/3;
-}
+.media-grid.count-3 { grid-template-columns: 1fr 1fr; }
+.media-grid.count-3 .media-item:first-child { grid-column: 1 / 3; aspect-ratio: 16/7; }
+.media-grid.count-3 .media-item:not(:first-child) { aspect-ratio: 4/3; }
 
 .media-grid.count-4,
-.media-grid.count-more {
-    grid-template-columns: 1fr 1fr;
-}
-
+.media-grid.count-more { grid-template-columns: 1fr 1fr; }
 .media-grid.count-4 .media-item,
-.media-grid.count-more .media-item {
-    aspect-ratio: 4/3;
-}
+.media-grid.count-more .media-item { aspect-ratio: 4/3; }
 
+/* ── Base del item: fondo gris skeleton ── */
 .media-item {
     position: relative;
     overflow: hidden;
-    background: #1a1a2e;
+    background: #cdd2da;
     cursor: pointer;
     aspect-ratio: 1 / 1;
 }
 
+/* ── ::before — ícono placeholder centrado ── */
+.media-item::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%23b0b8c5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 36px 36px;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+
+/* ── ::after — shimmer barriendo ── */
+.media-item::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.50) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite ease-in-out;
+    z-index: 2;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+
+/* ── Imagen/video: invisible hasta cargar ── */
 .media-item img,
 .media-item video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.2s ease;
+    position: relative;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 0.35s ease, transform 0.2s ease;
 }
 
-.media-item:hover img {
+/* ── Fade-in cuando cargó ── */
+.media-item img.loaded,
+.media-item video.loaded {
+    opacity: 1;
+}
+
+/* ── Ocultar skeleton al cargar ── */
+.media-item:has(img.loaded)::before,
+.media-item:has(img.loaded)::after,
+.media-item:has(video.loaded)::before,
+.media-item:has(video.loaded)::after {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Hover zoom solo cuando ya cargó ── */
+.media-item:hover img.loaded,
+.media-item:hover video.loaded {
     transform: scale(1.04);
 }
 
-.media-item.has-more-overlay::after {
-    content: attr(data-more);
+/* ── Overlay "+N más" como span real ── */
+.media-item.has-more-overlay .more-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.50);
+    background: rgba(0, 0, 0, 0.52);
     color: white;
     font-size: 22px;
     font-weight: 800;
@@ -921,11 +856,22 @@ main {
     align-items: center;
     justify-content: center;
     font-family: var(--font);
+    z-index: 4;
+    pointer-events: none;
 }
 
-.msg.bot.media-msg .msg-content {
-    max-width: calc(100% - 42px);
+/* ── Video play button overlay ── */
+.video-play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
 }
+
+.msg.bot.media-msg .msg-content { max-width: calc(100% - 42px); }
 
 .msg.bot.media-msg .bubble {
     padding: 0;
@@ -946,71 +892,11 @@ main {
     gap: 0;
 }
 
-.media-caption {
-    padding: 7px 10px 3px;
-    font-size: 13.5px;
-    color: var(--chat-secondary);
-    font-family: var(--font);
-}
-
-.media-carousel-dots {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin-top: 5px;
-}
-
-.media-carousel-dots span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #d1d5db;
-    transition: all 0.2s;
-}
-
-.media-carousel-dots span.active {
-    background: var(--chat-primary);
-    width: 14px;
-    border-radius: 3px;
-}
-
-.video-play-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-}
-
 .viewer-video {
     max-width: 90%;
     max-height: 90%;
     border-radius: 10px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
-    display: none;
-}
-
-.video-thumb-placeholder {
-    width: 100%;
-    height: 100%;
-    min-height: 120px;
-    background: #1a1a2e;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    color: white;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.video-link-item {
-    display: block;
-    width: 100%;
-    text-decoration: none;
-    color: white;
 }
 
 /* =========================
@@ -1071,7 +957,9 @@ main {
     transition: opacity .22s ease;
 }
 
-/* OPTIONS */
+/* ===============================
+   OPTIONS
+================================ */
 .bubble.options {
     display: flex;
     flex-direction: column;
@@ -1176,9 +1064,7 @@ footer {
     box-shadow: 0 5px 18px rgba(var(--chat-primary-rgb), 0.45);
 }
 
-#sendBtn:active:not(:disabled) {
-    transform: scale(0.93);
-}
+#sendBtn:active:not(:disabled) { transform: scale(0.93); }
 
 #sendBtn:disabled {
     opacity: 0.42;
@@ -1189,22 +1075,10 @@ footer {
 /* ===============================
    SCROLLBAR
 ================================ */
-main::-webkit-scrollbar {
-    width: 3px;
-}
-
-main::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-main::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-main::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
+main::-webkit-scrollbar       { width: 3px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+main::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ===============================
    RESPONSIVE — TABLET (481–768px)
@@ -1218,10 +1092,6 @@ main::-webkit-scrollbar-thumb:hover {
 
 /* ===============================
    RESPONSIVE — MÓVIL (≤ 480px)
-   Animación slide-up manejada 100% por CSS.
-   El install script JS solo fija las dimensiones
-   del viewport del iframe, sin competir con
-   las transiciones CSS.
 ================================ */
 @media (max-width: 480px) {
 
@@ -1264,21 +1134,9 @@ main::-webkit-scrollbar-thumb:hover {
         opacity: 0;
         pointer-events: none;
         visibility: hidden;
-        transition: opacity 0.18s ease,
-            visibility 0s linear 0.18s;
+        transition: opacity 0.18s ease, visibility 0s linear 0.18s;
     }
 
-    /* ─────────────────────────────────────────────────────
-     * CHAT WIDGET MÓVIL
-     *
-     * El JS del install script fija el iframe al 100% del
-     * viewport sin transiciones. El CSS maneja la animación
-     * slide-up/down vía translateY para evitar jank por
-     * conflicto entre mutaciones de layout JS y transiciones CSS.
-     *
-     * Cerrado: translateY(100%) — fuera de pantalla abajo.
-     * Abierto:  translateY(0)   — desliza hacia arriba.
-     * ───────────────────────────────────────────────────── */
     .chat-widget {
         position: fixed !important;
         top: 0 !important;
@@ -1290,7 +1148,6 @@ main::-webkit-scrollbar-thumb:hover {
         height: 100dvh !important;
         max-height: 100dvh !important;
         min-height: unset !important;
-        /* FIX bordes: ningún borde redondeado en móvil */
         border-radius: 0 !important;
         border: none !important;
         transform: translateY(100%) !important;
@@ -1301,7 +1158,6 @@ main::-webkit-scrollbar-thumb:hover {
         visibility: hidden;
         -webkit-backface-visibility: hidden;
         backface-visibility: hidden;
-        /* CIERRE: rápido, ease-in */
         transition:
             transform 0.28s cubic-bezier(0.4, 0, 1, 1),
             visibility 0s linear 0.28s !important;
@@ -1311,24 +1167,17 @@ main::-webkit-scrollbar-thumb:hover {
         transform: translateY(0) !important;
         pointer-events: auto;
         visibility: visible;
-        /* APERTURA: spring suave */
         transition:
             transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
             visibility 0s !important;
     }
 
-    /* flex container interno — hereda dvh del padre */
     .chat-widget .chat {
         height: 100%;
         max-height: 100%;
         overflow: hidden;
     }
 
-    /* ─────────────────────────────────────────────────────
-     * main — área de mensajes
-     * flex: 1 1 0 + min-height: 0 → CRÍTICO para que
-     * el footer nunca quede tapado por el teclado virtual.
-     * ───────────────────────────────────────────────────── */
     .chat-widget main {
         flex: 1 1 0 !important;
         min-height: 0 !important;
@@ -1337,20 +1186,17 @@ main::-webkit-scrollbar-thumb:hover {
         scroll-padding-bottom: 8px;
     }
 
-    /* footer siempre visible sobre el teclado */
     .chat-widget footer {
         flex-shrink: 0 !important;
         position: sticky !important;
         bottom: 0 !important;
         padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)) !important;
-        /* FIX bordes: sin redondeo en móvil */
         border-bottom-left-radius: 0 !important;
         border-bottom-right-radius: 0 !important;
         z-index: 2 !important;
         background: white !important;
     }
 
-    /* FIX bordes: header sin redondeo en móvil */
     .chat-header {
         border-top-left-radius: 0 !important;
         border-top-right-radius: 0 !important;
@@ -1359,37 +1205,17 @@ main::-webkit-scrollbar-thumb:hover {
         padding-right: 14px;
     }
 
-    .chat-avatar {
-        width: 38px;
-        height: 38px;
-    }
+    .chat-avatar       { width: 38px; height: 38px; }
+    .chat-header strong { font-size: 15px; }
 
-    .chat-header strong {
-        font-size: 15px;
-    }
+    main { padding: 14px 10px 10px; }
 
-    main {
-        padding: 14px 10px 10px;
-    }
+    .msg { gap: 7px; margin-bottom: 12px; }
 
-    .msg {
-        gap: 7px;
-        margin-bottom: 12px;
-    }
+    .msg-avatar { width: 28px; height: 28px; min-width: 28px; }
 
-    .msg-avatar {
-        width: 28px;
-        height: 28px;
-        min-width: 28px;
-    }
-
-    .msg-content {
-        max-width: calc(100% - 44px);
-    }
-
-    .msg.user .msg-content {
-        max-width: 78%;
-    }
+    .msg-content { max-width: calc(100% - 44px); }
+    .msg.user .msg-content { max-width: 78%; }
 
     .bubble {
         padding: 10px 13px;
@@ -1397,35 +1223,16 @@ main::-webkit-scrollbar-thumb:hover {
         border-radius: 16px;
     }
 
-    .msg.bot .bubble {
-        border-bottom-left-radius: 4px;
-    }
+    .msg.bot .bubble  { border-bottom-left-radius: 4px; }
+    .msg.user .bubble { border-bottom-right-radius: 4px; padding: 10px 15px; }
 
-    .msg.user .bubble {
-        border-bottom-right-radius: 4px;
-        padding: 10px 15px;
-    }
+    .message-time { font-size: 10px; margin-top: 2px; }
 
-    .message-time {
-        font-size: 10px;
-        margin-top: 2px;
-    }
+    footer { padding: 9px 11px; gap: 7px; }
 
-    footer {
-        padding: 9px 11px;
-        gap: 7px;
-    }
+    #messageInput { font-size: 16px; padding: 10px 15px; }
 
-    #messageInput {
-        /* ≥ 16px previene zoom automático en iOS al hacer focus */
-        font-size: 16px;
-        padding: 10px 15px;
-    }
-
-    #sendBtn {
-        width: 42px;
-        height: 42px;
-    }
+    #sendBtn { width: 42px; height: 42px; }
 
     .bubble.options button {
         min-height: 46px;
@@ -1434,74 +1241,35 @@ main::-webkit-scrollbar-thumb:hover {
     }
 
     .chat-close,
-    .chat-restart {
-        min-width: 44px;
-        min-height: 44px;
-    }
+    .chat-restart { min-width: 44px; min-height: 44px; }
 
-    .msg.bot.media-msg .msg-content {
-        max-width: calc(100% - 38px);
-    }
+    .msg.bot.media-msg .msg-content { max-width: calc(100% - 38px); }
 
-    .media-grid.count-1 .media-item {
-        max-height: 200px;
-    }
-
+    .media-grid.count-1 .media-item { max-height: 200px; }
     .media-grid.count-1 .media-item img,
-    .media-grid.count-1 .media-item video {
-        max-height: 200px;
-    }
+    .media-grid.count-1 .media-item video { max-height: 200px; }
 }
 
 /* Extra small < 360px */
 @media (max-width: 360px) {
-    .msg-content {
-        max-width: calc(100% - 38px);
-    }
-
-    .msg.user .msg-content {
-        max-width: 76%;
-    }
-
-    .bubble {
-        font-size: 13px;
-        padding: 9px 12px;
-    }
-
-    .chat-header strong {
-        font-size: 14px;
-    }
-
-    .chat-status {
-        font-size: 11px;
-    }
+    .msg-content { max-width: calc(100% - 38px); }
+    .msg.user .msg-content { max-width: 76%; }
+    .bubble { font-size: 13px; padding: 9px 12px; }
+    .chat-header strong { font-size: 14px; }
+    .chat-status { font-size: 11px; }
 }
 
 /* ===============================
    ACCESSIBILITY
 ================================ */
 @media (prefers-reduced-motion: reduce) {
-    .chat-fab {
-        animation: none;
-    }
-
-    .chat-status::before {
-        animation: none;
-    }
-
+    .chat-fab          { animation: none; }
+    .chat-status::before { animation: none; }
     .chat-welcome,
-    .chat-widget {
-        transition: opacity 0.15s ease, visibility 0s;
-    }
-
-    .msg {
-        animation: none;
-    }
-
-    .typing-dots span {
-        animation: none;
-        opacity: 0.6;
-    }
+    .chat-widget       { transition: opacity 0.15s ease, visibility 0s; }
+    .msg               { animation: none; }
+    .typing-dots span  { animation: none; opacity: 0.6; }
+    .media-item::after { animation: none; }
 }
 
 .chat-fab:focus-visible,

@@ -430,13 +430,17 @@ export function useChatbot(config: ChatbotConfig | null) {
 
             if (index === MAX_VISIBLE - 1 && extra > 0) {
                 item.classList.add("has-more-overlay")
-                item.dataset.more = `+${extra}`
+                const moreEl = document.createElement("span")
+                moreEl.className = "more-overlay"
+                moreEl.textContent = `+${extra}`
+                item.appendChild(moreEl)
             }
-
             if (media.type === "image") {
                 const img = document.createElement("img")
                 img.src = media.url
                 img.loading = "lazy"
+                img.onload = () => img.classList.add("loaded")
+                img.onerror = () => img.classList.add("loaded")
                 item.onclick = () => openImageViewer(media.url)
                 item.appendChild(img)
             }
@@ -461,6 +465,8 @@ export function useChatbot(config: ChatbotConfig | null) {
                     item.onclick = () => openVideoViewer(media.url)
                     item.appendChild(overlay)
                 }
+                video.onloadeddata = () => video.classList.add("loaded")
+                video.onerror = () => video.classList.add("loaded")
             }
             grid.appendChild(item)
         })
