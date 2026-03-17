@@ -55,6 +55,19 @@ export default function ChatbotWidget() {
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
 
+    useEffect(() => {
+        const handler = (e: MessageEvent) => {
+            if (e.data?.type === "CHATBOT_FAB_FREEZE") {
+                document.querySelector('.chat-fab')?.classList.add('no-transition');
+            }
+            if (e.data?.type === "CHATBOT_FAB_UNFREEZE") {
+                document.querySelector('.chat-fab')?.classList.remove('no-transition');
+            }
+        };
+        window.addEventListener("message", handler);
+        return () => window.removeEventListener("message", handler);
+    }, []);
+
     // ── 1. Cargar config ──
     useEffect(() => {
         const loadConfig = async () => {
@@ -199,6 +212,8 @@ export default function ChatbotWidget() {
 
     const handleToggle = () => { notifyResize(!isOpen); toggle() }
     const handleClose = () => { notifyResize(false); close() }
+
+
 
     // ── D. Handler de focus del input ──
     // Cuando el teclado aparece, hacemos scroll con delays escalonados

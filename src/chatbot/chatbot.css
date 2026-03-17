@@ -119,11 +119,15 @@ body {
     justify-content: center;
     z-index: 10001;
     box-shadow: 0 4px 20px rgba(var(--chat-primary-rgb), 0.45), 0 2px 6px rgba(0, 0, 0, 0.12);
-    animation: pulse 2.5s infinite;
-    transition: opacity 0.22s ease,
-                box-shadow 0.2s ease;
+    animation: pulse 2.5s infinite; 
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+}
+
+/* Agrega esta clase nueva */
+.chat-fab.no-transition {
+    transition: none !important;
+    animation: none !important;
 }
 
 .chat-fab:hover {
