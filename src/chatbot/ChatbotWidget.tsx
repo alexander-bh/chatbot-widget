@@ -54,6 +54,7 @@ export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
+    const verifyCalledRef = useRef(false);
 
     useEffect(() => {
         const handler = (e: MessageEvent) => {
@@ -70,6 +71,8 @@ export default function ChatbotWidget() {
 
     // ── 1. Cargar config ──
     useEffect(() => {
+        if (verifyCalledRef.current) return
+        verifyCalledRef.current = true
         const loadConfig = async () => {
             try {
                 const params = new URLSearchParams(window.location.search)
