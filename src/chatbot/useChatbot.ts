@@ -126,6 +126,9 @@ export function useChatbot(config: ChatbotConfig | null) {
     const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const processRef = useRef<((node: ChatNode, depth: number, sendFn: (v: string) => Promise<void>) => Promise<void>) | null>(null)
     const sendRef = useRef<((v?: string) => Promise<void>) | null>(null)
+    const appendMessageRef = useRef<(from: "user" | "bot", text: string, error?: boolean) => void>(() => { })
+    const disableInputRef = useRef<() => void>(() => { })
+
 
 
 
@@ -182,8 +185,14 @@ export function useChatbot(config: ChatbotConfig | null) {
             startedRef.current = true
             setStatusText("En línea")
             setConnectionStatus("connected")
-            setInputDisabled(false)
-            setSendDisabled(false)
+            // (Si hay botones activos, el efecto 4d ya maneja la interacción)
+            const tempDiv = document.createElement("div")
+            tempDiv.innerHTML = savedMessages
+            const hasActiveOptions = tempDiv.querySelector('.inline-options[data-active="true"]') !== null
+            if (!hasActiveOptions) {
+                setInputDisabled(false)
+                setSendDisabled(false)
+            }
         }
     }, [config?.publicId])
 
@@ -206,19 +215,54 @@ export function useChatbot(config: ChatbotConfig | null) {
             const saved = sessionStorage.getItem(MESSAGES_KEY)
             if (saved) {
                 messagesRef.current.innerHTML = saved
-                // Botones de opciones anteriores ya no son funcionales
-                messagesRef.current
-                    .querySelectorAll<HTMLButtonElement>(".inline-options button")
-                    .forEach(btn => {
-                        btn.disabled = true
-                        btn.style.opacity = "0.5"
-                        btn.style.cursor = "not-allowed"
-                        btn.style.pointerEvents = "none"
-                    })
+
+                // Obtener TODOS los grupos de opciones
+                const allOptionGroups = messagesRef.current
+                    .querySelectorAll<HTMLDivElement>(".inline-options")
+
+                allOptionGroups.forEach((group) => {
+                    const isActive = group.dataset.active === "true"   // ← la fuente de verdad
+                    const buttons = group.querySelectorAll<HTMLButtonElement>("button")
+
+                    if (isActive) {
+                        // re-enlazar botones activos
+                        buttons.forEach(btn => {
+                            const fresh = btn.cloneNode(true) as HTMLButtonElement
+                            fresh.disabled = false
+                            fresh.style.opacity = ""
+                            fresh.style.cursor = ""
+                            fresh.style.pointerEvents = ""
+                            btn.replaceWith(fresh)
+
+                            fresh.addEventListener("click", async () => {
+                                delete group.dataset.active   // ← limpiar para no re-activar en otra recarga
+                                group.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
+                                    b.disabled = true
+                                    b.style.opacity = "0.5"
+                                    b.style.cursor = "not-allowed"
+                                    b.style.pointerEvents = "none"
+                                })
+                                const label = fresh.textContent ?? ""
+                                const value = fresh.hasAttribute("data-value") ? fresh.dataset.value! : label
+                                appendMessageRef.current("user", label)
+                                disableInputRef.current()
+                                if (sendRef.current) await sendRef.current(value)
+                            })
+                        })
+                    } else {
+                        // bloquear grupos anteriores o ya respondidos
+                        buttons.forEach(btn => {
+                            btn.disabled = true
+                            btn.style.opacity = "0.5"
+                            btn.style.cursor = "not-allowed"
+                            btn.style.pointerEvents = "none"
+                        })
+                    }
+                })
                 scrollToBottom()
             }
         } catch { }
-    }, [MESSAGES_KEY, scrollToBottom])
+    }, [MESSAGES_KEY, scrollToBottom])  // appendMessage y disableInput via ref
 
     // 4e. MutationObserver — persistir cambios del DOM en sessionStorage
     useEffect(() => {
@@ -499,11 +543,14 @@ export function useChatbot(config: ChatbotConfig | null) {
 
             const container = document.createElement("div")
             container.className = "inline-options"
+            container.dataset.active = "true"
 
             list.forEach(o => {
                 const btn = document.createElement("button")
                 btn.textContent = o.label
+                btn.dataset.value = o.value != null ? o.value : o.label
                 btn.onclick = async () => {
+                    delete container.dataset.active
                     container.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
                         b.disabled = true
                         b.style.opacity = "0.5"
@@ -512,7 +559,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                     })
                     disableInput()
                     appendMessage("user", o.label)
-                    await sendFn(o.value || o.label)
+                    await sendFn(o.value != null ? o.value : o.label)
                 }
                 container.appendChild(btn)
             })
@@ -753,6 +800,8 @@ export function useChatbot(config: ChatbotConfig | null) {
     useEffect(() => { appendServerErrorRef.current = appendServerError }, [appendServerError])
     useEffect(() => { processRef.current = process }, [process])
     useEffect(() => { sendRef.current = send }, [send])
+    useEffect(() => { appendMessageRef.current = appendMessage }, [appendMessage])
+    useEffect(() => { disableInputRef.current = disableInput }, [disableInput])
 
     const start = useCallback(async () => {
         if (!config) return
@@ -808,9 +857,9 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [])
 
     const restart = useCallback(async () => {
-        clearRetryInterval()           
+        clearRetryInterval()
         errorMsgRef.current?.remove()
-        errorMsgRef.current = null    
+        errorMsgRef.current = null
         sessionIdRef.current = null
         setSessionId(null)
         if (config) {
@@ -824,7 +873,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         setStatusText("Reiniciando…")
         startedRef.current = true
         await start()
-    }, [config, disableInput, start,clearRetryInterval])
+    }, [config, disableInput, start, clearRetryInterval])
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        6. RETURN ANTICIPADO (después de todos los hooks)
