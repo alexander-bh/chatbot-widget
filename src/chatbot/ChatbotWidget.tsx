@@ -56,18 +56,18 @@ export default function ChatbotWidget() {
     const [loading, setLoading] = useState(true)
     const verifyCalledRef = useRef(false)
 
-    // ── Refs para notificadores — evitan usar funciones antes de que config exista ──
+    // ── Refs para notificadores ──
     const notifyWelcomeRef = useRef<(visible: boolean, message: string) => void>(() => {})
-    const notifyResizeRef = useRef<(open: boolean) => void>(() => {})
+    const notifyResizeRef  = useRef<(open: boolean) => void>(() => {})
 
     // Actualizar notificadores cuando llega config
     useEffect(() => {
         if (!config?.publicId) return
         notifyWelcomeRef.current = makeNotifyWelcome(config.publicId)
-        notifyResizeRef.current = makeNotifyResize(config.publicId)
+        notifyResizeRef.current  = makeNotifyResize(config.publicId)
     }, [config?.publicId])
 
-    // ── FAB freeze/unfreeze — filtrado por instanceId ──
+    // ── FAB freeze/unfreeze ──
     useEffect(() => {
         if (!config?.publicId) return
         const pid = config.publicId
@@ -90,7 +90,7 @@ export default function ChatbotWidget() {
         verifyCalledRef.current = true
         const loadConfig = async () => {
             try {
-                const params = new URLSearchParams(window.location.search)
+                const params  = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
 
@@ -114,7 +114,7 @@ export default function ChatbotWidget() {
     // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
 
-    // ── 3. useEffect del welcome — usa ref, nunca llama directo a notifyWelcome ──
+    // ── 3. Welcome effect ──
     useEffect(() => {
         if (!config?.welcomeMessage) return
         if (chatbot.welcomeVisible) {
@@ -140,7 +140,7 @@ export default function ChatbotWidget() {
     const isOpenRef = useRef(false)
     useEffect(() => { isOpenRef.current = chatbot.isOpen }, [chatbot.isOpen])
 
-    // ── A+B. viewport y resize — sin dependencia de config ──
+    // ── Viewport y resize ──
     useEffect(() => {
         const handleViewport = () => {
             if (!isOpenRef.current) return
@@ -165,7 +165,7 @@ export default function ChatbotWidget() {
         }
     }, [])
 
-    // ── C. CHATBOT_SCROLL_BOTTOM — filtrado por instanceId ──
+    // ── CHATBOT_SCROLL_BOTTOM ──
     useEffect(() => {
         if (!config?.publicId) return
         const pid = config.publicId
@@ -179,6 +179,27 @@ export default function ChatbotWidget() {
         window.addEventListener("message", handleMessage)
         return () => window.removeEventListener("message", handleMessage)
     }, [config?.publicId])
+
+    // ── NEW: CHATBOT_FORCE_CLOSE — cerrar este widget cuando otra instancia se abre ──
+    useEffect(() => {
+        if (!config?.publicId) return
+        const pid = config.publicId
+        const handler = (e: MessageEvent) => {
+            if (e.data?.instanceId && e.data.instanceId !== pid) return
+            if (e.data?.type !== "CHATBOT_FORCE_CLOSE") return
+
+            // Solo actuar si el chat está abierto
+            if (!chatbot.isOpen) return
+
+            // Cerrar sin notificar al host (el host ya actualizó el iframe)
+            chatbot.close()
+
+            // Ocultar welcome bubble si estaba visible
+            notifyWelcomeRef.current(false, "")
+        }
+        window.addEventListener("message", handler)
+        return () => window.removeEventListener("message", handler)
+    }, [config?.publicId, chatbot.isOpen, chatbot.close])
 
     // ── Returns condicionales SIEMPRE al final, tras todos los hooks ──
     if (loading) return null
@@ -194,7 +215,7 @@ export default function ChatbotWidget() {
                 }}>
                     <strong>Chatbot error ({error})</strong><br />
                     {error === "expired" && "La sesión expiró. Recarga la página."}
-                    {error === "auth" && "Dominio no autorizado o firma inválida."}
+                    {error === "auth"    && "Dominio no autorizado o firma inválida."}
                     {error === "network" && "No se pudo conectar con el servidor."}
                     {error === "unknown" && "Error desconocido. Revisa la consola."}
                 </div>
@@ -217,7 +238,7 @@ export default function ChatbotWidget() {
     const hasAvatar = Boolean(config.avatar)
 
     const handleToggle = () => { notifyResizeRef.current(!isOpen); toggle() }
-    const handleClose = () => { notifyResizeRef.current(false); close() }
+    const handleClose  = () => { notifyResizeRef.current(false);   close()  }
 
     const handleInputFocus = () => {
         setTimeout(() => scrollToBottom(false), 100)
