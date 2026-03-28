@@ -4,12 +4,12 @@ import type { ChatbotConfig } from "./useChatbot"
 import "./chatbot.css"
 import { RefreshCcw, Send, X } from "lucide-react"
 
-const notifyResize = (open: boolean) => {
-    window.parent.postMessage({ type: "CHATBOT_RESIZE", open }, "*")
+const makeNotifyResize = (publicId: string) => (open: boolean) => {
+    window.parent.postMessage({ type: "CHATBOT_RESIZE", open, instanceId: publicId }, "*")
 }
 
-const notifyWelcome = (visible: boolean, message: string) => {
-    window.parent.postMessage({ type: "CHATBOT_WELCOME", visible, message }, "*")
+const makeNotifyWelcome = (publicId: string) => (visible: boolean, message: string) => {
+    window.parent.postMessage({ type: "CHATBOT_WELCOME", visible, message, instanceId: publicId }, "*")
 }
 
 function decodeConfigParam(encoded: string): { payload: string; signature: string } {
@@ -54,20 +54,35 @@ export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
-    const verifyCalledRef = useRef(false);
+    const verifyCalledRef = useRef(false)
 
+    // ── Refs para notificadores — evitan usar funciones antes de que config exista ──
+    const notifyWelcomeRef = useRef<(visible: boolean, message: string) => void>(() => {})
+    const notifyResizeRef = useRef<(open: boolean) => void>(() => {})
+
+    // Actualizar notificadores cuando llega config
     useEffect(() => {
+        if (!config?.publicId) return
+        notifyWelcomeRef.current = makeNotifyWelcome(config.publicId)
+        notifyResizeRef.current = makeNotifyResize(config.publicId)
+    }, [config?.publicId])
+
+    // ── FAB freeze/unfreeze — filtrado por instanceId ──
+    useEffect(() => {
+        if (!config?.publicId) return
+        const pid = config.publicId
         const handler = (e: MessageEvent) => {
+            if (e.data?.instanceId && e.data.instanceId !== pid) return
             if (e.data?.type === "CHATBOT_FAB_FREEZE") {
-                document.querySelector('.chat-fab')?.classList.add('no-transition');
+                document.querySelector('.chat-fab')?.classList.add('no-transition')
             }
             if (e.data?.type === "CHATBOT_FAB_UNFREEZE") {
-                document.querySelector('.chat-fab')?.classList.remove('no-transition');
+                document.querySelector('.chat-fab')?.classList.remove('no-transition')
             }
-        };
-        window.addEventListener("message", handler);
-        return () => window.removeEventListener("message", handler);
-    }, []);
+        }
+        window.addEventListener("message", handler)
+        return () => window.removeEventListener("message", handler)
+    }, [config?.publicId])
 
     // ── 1. Cargar config ──
     useEffect(() => {
@@ -99,49 +114,36 @@ export default function ChatbotWidget() {
     // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
 
-    // ── 3. useEffect del welcome ──
+    // ── 3. useEffect del welcome — usa ref, nunca llama directo a notifyWelcome ──
     useEffect(() => {
         if (!config?.welcomeMessage) return
         if (chatbot.welcomeVisible) {
             const t = setTimeout(() => {
-                notifyWelcome(true, config.welcomeMessage ?? "")
+                notifyWelcomeRef.current(true, config.welcomeMessage ?? "")
             }, 100)
             return () => clearTimeout(t)
         } else {
-            notifyWelcome(false, "")
+            notifyWelcomeRef.current(false, "")
         }
     }, [chatbot.welcomeVisible, config?.welcomeMessage])
 
-    // ─────────────────────────────────────────────────────────────
-    // FIX TECLADO VIRTUAL — scroll al último mensaje cuando
-    // el teclado sube en Android/iOS
-    //
-    // La animación de apertura/cierre en móvil la maneja el CSS
-    // (translateY con curva spring). Este hook solo gestiona
-    // el scroll al último mensaje cuando el teclado aparece.
-    // ─────────────────────────────────────────────────────────────
     const scrollToBottom = (smooth = false) => {
         const el = chatbot.messagesRef?.current
         if (!el) return
-        // Intento 1: scrollTop directo (más fiable en Android Chrome)
         el.scrollTop = el.scrollHeight
-        // Intento 2: scrollIntoView en el último mensaje (más fiable en iOS)
         const last = el.querySelector(".msg:last-child")
         if (last) {
             last.scrollIntoView({ block: "end", behavior: smooth ? "smooth" : "instant" })
         }
     }
 
-    // Ref para saber si el chat está abierto dentro de listeners de viewport
     const isOpenRef = useRef(false)
     useEffect(() => { isOpenRef.current = chatbot.isOpen }, [chatbot.isOpen])
 
+    // ── A+B. viewport y resize — sin dependencia de config ──
     useEffect(() => {
-        // ── A. visualViewport (iOS Safari + Android) ──
-        // Se dispara cuando el teclado sube/baja con altura precisa
         const handleViewport = () => {
             if (!isOpenRef.current) return
-            // Delays escalonados: el teclado tarda ~300ms en asentarse
             setTimeout(() => scrollToBottom(false), 80)
             setTimeout(() => scrollToBottom(false), 250)
         }
@@ -150,32 +152,33 @@ export default function ChatbotWidget() {
             window.visualViewport.addEventListener("resize", handleViewport)
         }
 
-        // ── B. window resize (Android Chrome redimensiona el viewport) ──
         const handleResize = () => {
             if (isOpenRef.current) scrollToBottom(false)
         }
         window.addEventListener("resize", handleResize)
-
-        // ── C. Escuchar CHATBOT_SCROLL_BOTTOM del parent (install script) ──
-        const handleMessage = (e: MessageEvent) => {
-            if (e.data?.type === "CHATBOT_SCROLL_BOTTOM") {
-                setTimeout(() => scrollToBottom(false), 80)
-                setTimeout(() => scrollToBottom(false), 200)
-            }
-        }
-        window.addEventListener("message", handleMessage)
 
         return () => {
             if (window.visualViewport) {
                 window.visualViewport.removeEventListener("resize", handleViewport)
             }
             window.removeEventListener("resize", handleResize)
-            window.removeEventListener("message", handleMessage)
         }
-    }, []) // solo mount/unmount — scrollToBottom usa ref, no stale closure
+    }, [])
 
-    // ── D. Scroll cuando el input recibe focus (teclado abre) ──
-    // Se hace con onFocus directamente en el JSX del <input> (ver abajo)
+    // ── C. CHATBOT_SCROLL_BOTTOM — filtrado por instanceId ──
+    useEffect(() => {
+        if (!config?.publicId) return
+        const pid = config.publicId
+        const handleMessage = (e: MessageEvent) => {
+            if (e.data?.instanceId && e.data.instanceId !== pid) return
+            if (e.data?.type === "CHATBOT_SCROLL_BOTTOM") {
+                setTimeout(() => scrollToBottom(false), 80)
+                setTimeout(() => scrollToBottom(false), 200)
+            }
+        }
+        window.addEventListener("message", handleMessage)
+        return () => window.removeEventListener("message", handleMessage)
+    }, [config?.publicId])
 
     // ── Returns condicionales SIEMPRE al final, tras todos los hooks ──
     if (loading) return null
@@ -213,13 +216,9 @@ export default function ChatbotWidget() {
 
     const hasAvatar = Boolean(config.avatar)
 
-    const handleToggle = () => { notifyResize(!isOpen); toggle() }
-    const handleClose = () => { notifyResize(false); close() }
+    const handleToggle = () => { notifyResizeRef.current(!isOpen); toggle() }
+    const handleClose = () => { notifyResizeRef.current(false); close() }
 
-
-
-    // ── D. Handler de focus del input ──
-    // Cuando el teclado aparece, hacemos scroll con delays escalonados
     const handleInputFocus = () => {
         setTimeout(() => scrollToBottom(false), 100)
         setTimeout(() => scrollToBottom(false), 300)
@@ -276,7 +275,6 @@ export default function ChatbotWidget() {
                             autoComplete="off"
                             placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
                             disabled={inputDisabled}
-                            // ── FIX: scroll al último msg cuando el teclado abre ──
                             onFocus={handleInputFocus}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }

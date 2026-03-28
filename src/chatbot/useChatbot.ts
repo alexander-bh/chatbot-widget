@@ -295,6 +295,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         // ✅ Registrar el listener ANTES del setTimeout
         const handlePermission = (e: MessageEvent) => {
             if (!e.data || e.data.type !== "CHATBOT_WELCOME_PERMISSION") return
+            if (e.data.instanceId !== config.publicId) return  // ← filtro
             if (e.data.allowed && !isOpenRef.current) {
                 setWelcomeVisible(true)
             }
@@ -304,7 +305,7 @@ export function useChatbot(config: ChatbotConfig | null) {
         // ✅ Enviar el request DESPUÉS de registrar el listener
         const timer = setTimeout(() => {
             if (isOpenRef.current) return
-            window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST" }, "*")
+            window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST", instanceId: config.publicId }, "*")
         }, delay)
 
         return () => {
@@ -841,7 +842,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                 setWelcomeVisible(false)
                 setUnreadCount(0)
                 // Notificar al padre que el welcome fue cerrado/visto
-                window.parent.postMessage({ type: "CHATBOT_WELCOME_SEEN" }, "*")
+                window.parent.postMessage({ type: "CHATBOT_WELCOME_SEEN", instanceId: config.publicId }, "*")
                 if (!startedRef.current) {
                     startedRef.current = true
                     setTimeout(() => start(), 0)
