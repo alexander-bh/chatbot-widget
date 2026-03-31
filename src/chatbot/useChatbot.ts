@@ -102,6 +102,12 @@ export function useChatbot(config: ChatbotConfig | null) {
     const sendingRef = useRef(false)
     const isOpenRef = useRef(false)
 
+    // ── Token de abort ─────────────────────────────────────────────────────
+    // Cada restart() genera un Symbol nuevo y único. Cualquier flujo anterior
+    // (process / send / start / autoAdvance) compara su token guardado contra
+    // este ref; si ya no coincide, se cancela silenciosamente sin tocar el DOM.
+    const abortRef = useRef<symbol>(Symbol("chatbot-init"))
+
     const MESSAGES_KEY = config ? `chatbot_dom_${config.publicId}` : null
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -124,8 +130,8 @@ export function useChatbot(config: ChatbotConfig | null) {
     const appendServerErrorRef = useRef<() => void>(() => { })
     const errorMsgRef = useRef<HTMLDivElement | null>(null)
     const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const processRef = useRef<((node: ChatNode, depth: number, sendFn: (v: string) => Promise<void>) => Promise<void>) | null>(null)
-    const sendRef = useRef<((v?: string) => Promise<void>) | null>(null)
+    const processRef = useRef<((node: ChatNode, depth: number, sendFn: (v: string, token?: symbol) => Promise<void>, token: symbol) => Promise<void>) | null>(null)
+    const sendRef = useRef<((v?: string, token?: symbol) => Promise<void>) | null>(null)
     const appendMessageRef = useRef<(from: "user" | "bot", text: string, error?: boolean) => void>(() => { })
     const disableInputRef = useRef<() => void>(() => { })
 
@@ -185,7 +191,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             startedRef.current = true
             setStatusText("En línea")
             setConnectionStatus("connected")
-            // (Si hay botones activos, el efecto 4d ya maneja la interacción)
             const tempDiv = document.createElement("div")
             tempDiv.innerHTML = savedMessages
             const hasActiveOptions = tempDiv.querySelector('.inline-options[data-active="true"]') !== null
@@ -216,16 +221,14 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (saved) {
                 messagesRef.current.innerHTML = saved
 
-                // Obtener TODOS los grupos de opciones
                 const allOptionGroups = messagesRef.current
                     .querySelectorAll<HTMLDivElement>(".inline-options")
 
                 allOptionGroups.forEach((group) => {
-                    const isActive = group.dataset.active === "true"   // ← la fuente de verdad
+                    const isActive = group.dataset.active === "true"
                     const buttons = group.querySelectorAll<HTMLButtonElement>("button")
 
                     if (isActive) {
-                        // re-enlazar botones activos
                         buttons.forEach(btn => {
                             const fresh = btn.cloneNode(true) as HTMLButtonElement
                             fresh.disabled = false
@@ -235,7 +238,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                             btn.replaceWith(fresh)
 
                             fresh.addEventListener("click", async () => {
-                                delete group.dataset.active   // ← limpiar para no re-activar en otra recarga
+                                delete group.dataset.active
                                 group.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
                                     b.disabled = true
                                     b.style.opacity = "0.5"
@@ -250,7 +253,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                             })
                         })
                     } else {
-                        // bloquear grupos anteriores o ya respondidos
                         buttons.forEach(btn => {
                             btn.disabled = true
                             btn.style.opacity = "0.5"
@@ -262,7 +264,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                 scrollToBottom()
             }
         } catch { }
-    }, [MESSAGES_KEY, scrollToBottom])  // appendMessage y disableInput via ref
+    }, [MESSAGES_KEY, scrollToBottom])
 
     // 4e. MutationObserver — persistir cambios del DOM en sessionStorage
     useEffect(() => {
@@ -292,17 +294,15 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         const delay = (config.welcomeDelay ?? 2) * 1000
 
-        // ✅ Registrar el listener ANTES del setTimeout
         const handlePermission = (e: MessageEvent) => {
             if (!e.data || e.data.type !== "CHATBOT_WELCOME_PERMISSION") return
-            if (e.data.instanceId !== config.publicId) return  // ← filtro
+            if (e.data.instanceId !== config.publicId) return
             if (e.data.allowed && !isOpenRef.current) {
                 setWelcomeVisible(true)
             }
         }
         window.addEventListener("message", handlePermission)
 
-        // ✅ Enviar el request DESPUÉS de registrar el listener
         const timer = setTimeout(() => {
             if (isOpenRef.current) return
             window.parent.postMessage({ type: "CHATBOT_WELCOME_REQUEST", instanceId: config.publicId }, "*")
@@ -537,7 +537,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [openImageViewer, openVideoViewer, scrollToBottom])
 
     const renderInlineOptions = useCallback(
-        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string) => Promise<void>) => {
+        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string, token?: symbol) => Promise<void>, token: symbol) => {
             const list = (node.node_type === "policy" || node.type === "policy")
                 ? node.policy!
                 : node.options!
@@ -551,6 +551,9 @@ export function useChatbot(config: ChatbotConfig | null) {
                 btn.textContent = o.label
                 btn.dataset.value = o.value != null ? o.value : o.label
                 btn.onclick = async () => {
+                    // Ignorar si el flujo ya fue abortado por restart
+                    if (token !== abortRef.current) return
+
                     delete container.dataset.active
                     container.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
                         b.disabled = true
@@ -560,7 +563,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                     })
                     disableInput()
                     appendMessage("user", o.label)
-                    await sendFn(o.value != null ? o.value : o.label)
+                    await sendFn(o.value != null ? o.value : o.label, token)
                 }
                 container.appendChild(btn)
             })
@@ -571,7 +574,7 @@ export function useChatbot(config: ChatbotConfig | null) {
 
     const appendServerError = useCallback(() => {
         if (!messagesRef.current) return
-        if (errorMsgRef.current) return  // ya hay uno visible, no duplicar
+        if (errorMsgRef.current) return
 
         const m = document.createElement("div")
         m.className = "msg bot error-server"
@@ -607,7 +610,6 @@ export function useChatbot(config: ChatbotConfig | null) {
         errorMsgRef.current = m
         scrollToBottom()
 
-        // Animación de puntos
         const dotsEl = bubble.querySelector(".retry-dots") as HTMLElement
         let dotCount = 0
         const dotsInterval = setInterval(() => {
@@ -615,7 +617,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (dotsEl) dotsEl.textContent = ".".repeat(dotCount)
         }, 500)
 
-        // Reintentar cada 5s
         retryIntervalRef.current = setInterval(async () => {
             try {
                 const r = await fetch(
@@ -626,11 +627,10 @@ export function useChatbot(config: ChatbotConfig | null) {
                         body: JSON.stringify({ origin_url: config!.originDomain, visitor_id: getVisitorId() })
                     }
                 )
-                if (!r.ok) return  // sigue esperando
+                if (!r.ok) return
 
                 const d: ChatNode = await r.json()
 
-                // ✅ Servidor restaurado — limpiar error y reiniciar
                 clearInterval(dotsInterval)
                 clearRetryInterval()
                 errorMsgRef.current?.remove()
@@ -642,25 +642,34 @@ export function useChatbot(config: ChatbotConfig | null) {
                 localStorage.setItem(`chat_session_${config!.publicId}`, d.session_id!)
                 setStatusText("En línea")
                 setConnectionStatus("connected")
-                processRef.current?.(d, 0, sendRef.current!)
+
+                // Generar token fresco para el flujo de reconexión
+                const freshToken = Symbol("chatbot-reconnect")
+                abortRef.current = freshToken
+                sendingRef.current = false
+                processRef.current?.(d, 0, sendRef.current!, freshToken)
 
             } catch {
-                // sigue esperando, no hacer nada
+                // sigue esperando
             }
         }, 5000)
 
-        // Limpiar dotsInterval si el componente se desmonta
         return () => {
             clearInterval(dotsInterval)
         }
     }, [config, scrollToBottom, clearRetryInterval])
 
+    // process recibe y propaga el token de abort en cada paso
     const process = useCallback(async (
         node: ChatNode,
         depth = 0,
-        sendFn: (v: string) => Promise<void>
+        sendFn: (v: string, token?: symbol) => Promise<void>,
+        token: symbol
     ): Promise<void> => {
         if (!node || depth > 50 || !config) return
+
+        // Abortar si el flujo fue invalidado por restart
+        if (token !== abortRef.current) return
 
         const nodeType = node.node_type || node.type
 
@@ -679,7 +688,11 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
         }
 
+        // Verificar nuevamente tras cada await — restart puede llegar en cualquier momento
+        if (token !== abortRef.current) return
+
         const autoAdvance = async () => {
+            if (token !== abortRef.current) return
             try {
                 const sid = sessionIdRef.current
                 if (!sid) return
@@ -687,10 +700,12 @@ export function useChatbot(config: ChatbotConfig | null) {
                     `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
                     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
                 )
+                if (token !== abortRef.current) return  // restart llegó durante el fetch
                 const nextNode: ChatNode = await r.json()
                 if (!nextNode || nextNode.completed) { disableInput(); return }
-                return process(nextNode, depth + 1, sendFn)
+                return process(nextNode, depth + 1, sendFn, token)
             } catch {
+                if (token !== abortRef.current) return
                 appendServerErrorRef.current()
             }
         }
@@ -725,6 +740,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (node.end_conversation) { disableInput(); return }
             disableInput()
             await new Promise(r => setTimeout(r, 400))
+            if (token !== abortRef.current) return  // restart llegó durante el delay
             await autoAdvance()
             return
         }
@@ -735,7 +751,7 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         if ((nodeType === "options" && node.options?.length) ||
             (nodeType === "policy" && node.policy?.length)) {
-            renderInlineOptions(node, bubbleElement, sendFn)
+            renderInlineOptions(node, bubbleElement, sendFn, token)
             disableInput()
             return
         }
@@ -761,8 +777,16 @@ export function useChatbot(config: ChatbotConfig | null) {
         renderBotMessage, renderLinkActions, renderMediaCarousel, renderInlineOptions,
     ])
 
-    const send = useCallback(async (v?: string): Promise<void> => {
+    // send recibe y propaga el token de abort
+    const send = useCallback(async (v?: string, token?: symbol): Promise<void> => {
         if (!config) return
+
+        // Usar el token recibido o el activo en este momento
+        const activeToken = token ?? abortRef.current
+
+        // Abortar si el flujo fue invalidado antes de empezar
+        if (activeToken !== abortRef.current) return
+
         const text = v ?? inputRef.current?.value?.trim()
         if (!text || !sessionIdRef.current) return
         if (sendingRef.current) return
@@ -779,6 +803,10 @@ export function useChatbot(config: ChatbotConfig | null) {
                 `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sessionIdRef.current}/next`,
                 { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: text }) }
             )
+
+            // Abortar si llegó restart durante el fetch
+            if (activeToken !== abortRef.current) { sendingRef.current = false; return }
+
             const nextNode: ChatNode = await r.json()
 
             if (nextNode?.validation_error) {
@@ -789,8 +817,9 @@ export function useChatbot(config: ChatbotConfig | null) {
                 return
             }
             if (nextNode?.completed) { disableInput(); sendingRef.current = false; return }
-            await process(nextNode, 0, send)
+            await process(nextNode, 0, send, activeToken)
         } catch {
+            if (activeToken !== abortRef.current) { sendingRef.current = false; return }
             hideTyping()
             appendServerErrorRef.current()
             enableInput()
@@ -804,8 +833,13 @@ export function useChatbot(config: ChatbotConfig | null) {
     useEffect(() => { appendMessageRef.current = appendMessage }, [appendMessage])
     useEffect(() => { disableInputRef.current = disableInput }, [disableInput])
 
-    const start = useCallback(async () => {
+    // start recibe y verifica el token de abort
+    const start = useCallback(async (token?: symbol) => {
         if (!config) return
+
+        // Usar el token recibido (de restart) o el activo actual
+        const activeToken = token ?? abortRef.current
+
         try {
             showTyping()
             setStatusText("Conectando...")
@@ -817,6 +851,10 @@ export function useChatbot(config: ChatbotConfig | null) {
                     body: JSON.stringify({ origin_url: config.originDomain, visitor_id: getVisitorId() })
                 }
             )
+
+            // Abortar si llegó otro restart durante el fetch
+            if (activeToken !== abortRef.current) return
+
             const d: ChatNode = await r.json()
             sessionIdRef.current = d.session_id!
             setSessionId(d.session_id!)
@@ -824,8 +862,9 @@ export function useChatbot(config: ChatbotConfig | null) {
             hideTyping()
             setStatusText("En línea")
             setConnectionStatus("connected")
-            process(d, 0, send)
+            process(d, 0, send, activeToken)
         } catch {
+            if (activeToken !== abortRef.current) return
             hideTyping()
             setStatusText("Error")
             setConnectionStatus("error")
@@ -841,7 +880,6 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (next) {
                 setWelcomeVisible(false)
                 setUnreadCount(0)
-                // Notificar al padre que el welcome fue cerrado/visto
                 window.parent.postMessage({ type: "CHATBOT_WELCOME_SEEN", instanceId: config.publicId }, "*")
                 if (!startedRef.current) {
                     startedRef.current = true
@@ -858,22 +896,39 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [])
 
     const restart = useCallback(async () => {
+        // ── Invalidar TODOS los flujos anteriores de golpe ─────────────────
+        // Esta línea va PRIMERO: cualquier async en vuelo detectará el cambio
+        // en su próxima verificación `if (token !== abortRef.current) return`.
+        const freshToken = Symbol("chatbot-restart")
+        abortRef.current = freshToken
+
+        // Limpiar locks y timers
+        sendingRef.current = false
         clearRetryInterval()
+
+        // Limpiar estado de error
         errorMsgRef.current?.remove()
         errorMsgRef.current = null
+
+        // Limpiar sesión
         sessionIdRef.current = null
         setSessionId(null)
         if (config) {
             localStorage.removeItem(`chat_session_${config.publicId}`)
             sessionStorage.removeItem(`chatbot_dom_${config.publicId}`)
         }
+
+        // Limpiar DOM
         if (messagesRef.current) messagesRef.current.innerHTML = ""
         if (inputRef.current) inputRef.current.value = ""
         if (typingRef.current) { typingRef.current.remove(); typingRef.current = null }
+
         disableInput()
         setStatusText("Reiniciando…")
         startedRef.current = true
-        await start()
+
+        // Pasar el token fresco a start para que lo propague a todo el árbol
+        await start(freshToken)
     }, [config, disableInput, start, clearRetryInterval])
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
