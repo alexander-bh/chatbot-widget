@@ -1299,11 +1299,12 @@ main::-webkit-scrollbar-thumb:hover {
     }
 
     .chat-welcome::after {
-        right: auto;      /* ← quita right */
-        left: 20px;       /* ← flecha al lado izquierdo */
+        right: auto;
+        left: 20px;
         top: auto;
         bottom: -8px;
-        transform: rotate(45deg);
+        transform: translateY(0) rotate(45deg);
+        /* ← resetea translateY explícitamente */
         border-right: 1.5px solid var(--chat-border);
         border-bottom: 1.5px solid var(--chat-border);
         border-top: none;
