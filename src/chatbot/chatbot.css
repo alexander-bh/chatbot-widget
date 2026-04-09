@@ -1288,9 +1288,9 @@ main::-webkit-scrollbar-thumb:hover {
 
     .chat-welcome {
         right: 14px;
-        bottom: 88px;
-        max-width: calc(100vw - 28px);
-        font-size: 14px;
+        bottom: 100px;
+        max-width: calc(100vw - 110px);
+        font-size: 13px;
         transform: translateY(10px) scale(.98);
     }
 
