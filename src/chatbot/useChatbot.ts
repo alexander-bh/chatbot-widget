@@ -135,9 +135,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     const appendMessageRef = useRef<(from: "user" | "bot", text: string, error?: boolean) => void>(() => { })
     const disableInputRef = useRef<() => void>(() => { })
 
-
-
-
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        3. CALLBACKS BÁSICOS (sin dependencias de otros callbacks)
        Deben ir ANTES de los useEffect que los usan
