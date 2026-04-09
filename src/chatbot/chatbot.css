@@ -1299,7 +1299,8 @@ main::-webkit-scrollbar-thumb:hover {
     }
 
     .chat-welcome::after {
-        right: 20px;
+        right: auto;      /* ← quita right */
+        left: 20px;       /* ← flecha al lado izquierdo */
         top: auto;
         bottom: -8px;
         transform: rotate(45deg);
