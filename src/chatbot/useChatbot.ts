@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react"
+import { ChatbotEngine } from "./chatboteEngine"
+import type { FlowBundle, BundleNode } from "./chatbot-types"
 
 export interface ChatbotConfig {
     apiBase: string
@@ -25,30 +27,6 @@ interface LinkAction {
     title?: string
     value: string
     new_tab?: boolean
-}
-
-interface Option {
-    label: string
-    value?: string
-}
-
-interface ChatNode {
-    session_id?: string
-    node_id?: string
-    node_type?: string
-    type?: string
-    content?: string
-    typing_time?: number
-    input_type?: string
-    validation_error?: boolean
-    message?: string
-    options?: Option[]
-    policy?: Option[]
-    media?: MediaItem[]
-    link_actions?: LinkAction[]
-    auto_next?: boolean
-    end_conversation?: boolean
-    completed?: boolean
 }
 
 const TEXT_INPUT_TYPES = ["question", "email", "phone", "number"]
@@ -97,7 +75,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     const messagesRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
     const startedRef = useRef(false)
-    const sessionIdRef = useRef<string | null>(null)
     const typingRef = useRef<HTMLDivElement | null>(null)
     const sendingRef = useRef(false)
     const isOpenRef = useRef(false)
@@ -107,17 +84,14 @@ export function useChatbot(config: ChatbotConfig | null) {
     // (process / send / start / autoAdvance) compara su token guardado contra
     // este ref; si ya no coincide, se cancela silenciosamente sin tocar el DOM.
     const abortRef = useRef<symbol>(Symbol("chatbot-init"))
-
+    const engineRef = useRef<ChatbotEngine | null>(null)
+    const bundleRef = useRef<FlowBundle | null>(null)
     const MESSAGES_KEY = config ? `chatbot_dom_${config.publicId}` : null
-
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        2. STATE
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const [isOpen, setIsOpen] = useState(false)
-    const [sessionId, setSessionId] = useState<string | null>(() => {
-        if (!config) return null
-        return localStorage.getItem(`chat_session_${config.publicId}`) ?? null
-    })
+
     const [connectionStatus, setConnectionStatus] = useState<"connected" | "error" | "connecting">("connecting")
     const [unreadCount, setUnreadCount] = useState(0)
     const [inputDisabled, setInputDisabled] = useState(true)
@@ -127,19 +101,26 @@ export function useChatbot(config: ChatbotConfig | null) {
     const [viewerUrl, setViewerUrl] = useState("")
     const [viewerIsVideo, setViewerIsVideo] = useState(false)
     const [welcomeVisible, setWelcomeVisible] = useState(false)
+    const [isRestarting, setIsRestarting] = useState(false)
     const appendServerErrorRef = useRef<() => void>(() => { })
+    const loadBundleRef = useRef<((token?: symbol) => Promise<FlowBundle | null>) | null>(null)
+    const startRef = useRef<((token?: symbol) => Promise<void>) | null>(null)
     const errorMsgRef = useRef<HTMLDivElement | null>(null)
     const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const processRef = useRef<((node: ChatNode, depth: number, sendFn: (v: string, token?: symbol) => Promise<void>, token: symbol) => Promise<void>) | null>(null)
+    const finishConversationRef = useRef<((engine: ChatbotEngine, token: symbol) => Promise<void>) | null>(null)
+    const processLocalRef = useRef<((node: BundleNode, depth: number, token: symbol) => void) | null>(null)
     const sendRef = useRef<((v?: string, token?: symbol) => Promise<void>) | null>(null)
     const appendMessageRef = useRef<(from: "user" | "bot", text: string, error?: boolean) => void>(() => { })
     const disableInputRef = useRef<() => void>(() => { })
+    const engineReadyRef = useRef<Promise<void>>(Promise.resolve())
+    const [shouldAutoStart, setShouldAutoStart] = useState(false)
+    const resolveEngineRef = useRef<() => void>(() => { })
+
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        3. CALLBACKS BÁSICOS (sin dependencias de otros callbacks)
        Deben ir ANTES de los useEffect que los usan
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
     const clearRetryInterval = useCallback(() => {
         if (retryIntervalRef.current) {
             clearInterval(retryIntervalRef.current)
@@ -168,35 +149,75 @@ export function useChatbot(config: ChatbotConfig | null) {
 
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       4. EFFECTS
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+   4. EFFECTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-    // 4a. Sync sessionId ref
-    useEffect(() => {
-        sessionIdRef.current = sessionId
-    }, [sessionId])
-
-    // 4b. Restaurar sesión activa si existe (sin tocar el DOM todavía)
+    // 4b — Restaurar sesión si existe
     useEffect(() => {
         if (!config) return
-        const savedSession = localStorage.getItem(`chat_session_${config.publicId}`)
         const savedMessages = sessionStorage.getItem(`chatbot_dom_${config.publicId}`)
+        if (!savedMessages) return
 
-        if (savedSession && savedMessages) {
-            sessionIdRef.current = savedSession
-            setSessionId(savedSession)
-            startedRef.current = true
-            setStatusText("En línea")
-            setConnectionStatus("connected")
-            const tempDiv = document.createElement("div")
-            tempDiv.innerHTML = savedMessages
-            const hasActiveOptions = tempDiv.querySelector('.inline-options[data-active="true"]') !== null
-            if (!hasActiveOptions) {
-                setInputDisabled(false)
-                setSendDisabled(false)
-            }
+        startedRef.current = true
+        setStatusText("En línea")
+        setConnectionStatus("connected")
+
+        // Crear promesa AQUÍ dentro del efecto, no fuera
+        engineReadyRef.current = new Promise(resolve => {
+            resolveEngineRef.current = resolve
+        })
+
+        const tempDiv = document.createElement("div")
+        tempDiv.innerHTML = savedMessages
+        const hasActiveOptions = tempDiv.querySelector('.inline-options[data-active="true"]') !== null
+        if (!hasActiveOptions) {
+            setInputDisabled(false)
+            setSendDisabled(false)
         }
+
+        const initToken = abortRef.current
+        const timer = setTimeout(() => {
+            loadBundleRef.current?.(initToken)?.then(bundle => {
+                if (!bundle || initToken !== abortRef.current) return
+                const engine = new ChatbotEngine(bundle)
+                const savedRaw = sessionStorage.getItem(`chatbot_node_${config.publicId}`)
+                if (savedRaw) {
+                    try {
+                        const saved = JSON.parse(savedRaw)
+                        engine.restoreState(saved.nodeId, saved.variables, saved.history)
+                    } catch { }
+                }
+                engineRef.current = engine
+                resolveEngineRef.current()
+                if (!hasActiveOptions) {
+                    setInputDisabled(false)
+                    setSendDisabled(false)
+                }
+            })
+        }, 0)
+
+        return () => clearTimeout(timer)
     }, [config?.publicId])
+
+    // 4g — Auto-start si no hay sesión
+    useEffect(() => {
+        if (!config) return
+        const savedMessages = sessionStorage.getItem(`chatbot_dom_${config.publicId}`)
+        if (savedMessages) return
+        if (startedRef.current) return
+        startedRef.current = true
+        setShouldAutoStart(true)
+    }, [config?.publicId])
+
+    // 4h — Ejecutar start (startRef ya asignado en este punto)
+    useEffect(() => {
+        if (!shouldAutoStart) return
+        setShouldAutoStart(false)
+        const bgToken = abortRef.current
+        setTimeout(() => {
+            startRef.current?.(bgToken)
+        }, 0)
+    }, [shouldAutoStart])
 
     // 4c. Aplicar theme CSS vars
     useEffect(() => {
@@ -246,6 +267,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                                 const value = fresh.hasAttribute("data-value") ? fresh.dataset.value! : label
                                 appendMessageRef.current("user", label)
                                 disableInputRef.current()
+                                await engineReadyRef.current
                                 if (sendRef.current) await sendRef.current(value)
                             })
                         })
@@ -319,7 +341,6 @@ export function useChatbot(config: ChatbotConfig | null) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        5. CALLBACKS COMPUESTOS
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
     const configureInput = useCallback((type: string) => {
         if (!inputRef.current) return
         inputRef.current.type = "text"
@@ -329,26 +350,56 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (type === "number") { inputRef.current.type = "number" }
     }, [config?.inputPlaceholder])
 
-    const showTyping = useCallback(() => {
-        if (typingRef.current || !messagesRef.current) return
+    const showTyping = useCallback((): HTMLDivElement => {
+        if (typingRef.current) return typingRef.current
         const el = document.createElement("div")
         el.className = "msg bot typing"
         el.innerHTML = `
-            <img src="${config?.avatar ?? ""}" class="msg-avatar" />
-            <div class="msg-content">
-                <div class="bubble">
-                    <span class="typing-dots"><span></span><span></span><span></span></span>
-                </div>
-            </div>`
-        messagesRef.current.appendChild(el)
+        <img src="${config?.avatar ?? ""}" class="msg-avatar" />
+        <div class="msg-content">
+            <div class="bubble">
+                <span class="typing-dots"><span></span><span></span><span></span></span>
+            </div>
+        </div>`
+        messagesRef.current?.appendChild(el)
         typingRef.current = el
         scrollToBottom()
+        return el
     }, [config?.avatar, scrollToBottom])
 
     const hideTyping = useCallback(() => {
         typingRef.current?.remove()
         typingRef.current = null
     }, [])
+
+    const resolveTyping = useCallback((html: string): HTMLDivElement => {
+        const el = typingRef.current
+
+        // Si no hay typing activo, fallback a renderBotMessage normal
+        if (!el || !messagesRef.current?.contains(el)) {
+            typingRef.current = null
+            return renderBotMessage(html)  // lo resolveremos abajo
+        }
+
+        // Mutar el elemento existente en lugar de crear uno nuevo
+        el.classList.remove("typing")
+
+        const bubble = el.querySelector(".bubble") as HTMLDivElement
+        const contentWrapper = el.querySelector(".msg-content") as HTMLDivElement
+
+        bubble.innerHTML = html
+
+        const timeEl = document.createElement("div")
+        timeEl.className = "message-time"
+        timeEl.textContent = getTime()
+        contentWrapper.appendChild(timeEl)
+
+        typingRef.current = null
+        if (!isOpenRef.current) setUnreadCount(prev => prev + 1)
+        scrollToBottom()
+
+        return bubble
+    }, [scrollToBottom])
 
     const appendMessage = useCallback((from: "user" | "bot", text: string, error = false) => {
         if (!messagesRef.current) return
@@ -379,6 +430,15 @@ export function useChatbot(config: ChatbotConfig | null) {
         if (from === "bot" && !isOpenRef.current) setUnreadCount(prev => prev + 1)
         scrollToBottom()
     }, [config?.avatar, scrollToBottom])
+
+    const appendErrorWithDelay = useCallback(async (message: string, token: symbol) => {
+        if (token !== abortRef.current) return
+        showTyping()
+        await new Promise(r => setTimeout(r, 2000))
+        if (token !== abortRef.current) return
+        hideTyping()
+        appendMessage("bot", message, true)
+    }, [showTyping, hideTyping, appendMessage])
 
     const renderBotMessage = useCallback((html: string): HTMLDivElement => {
         const m = document.createElement("div")
@@ -533,41 +593,59 @@ export function useChatbot(config: ChatbotConfig | null) {
         scrollToBottom()
     }, [openImageViewer, openVideoViewer, scrollToBottom])
 
-    const renderInlineOptions = useCallback(
-        (node: ChatNode, bubbleElement: HTMLDivElement, sendFn: (v: string, token?: symbol) => Promise<void>, token: symbol) => {
-            const list = (node.node_type === "policy" || node.type === "policy")
-                ? node.policy!
-                : node.options!
+    // Versión local de renderInlineOptions (sin fetch /next)
+    const renderInlineOptionsLocal = useCallback((
+        node: BundleNode,
+        bubbleElement: HTMLDivElement,
+        token: symbol
+    ) => {
+        const list = node.node_type === "policy" ? node.policy! : node.options!
+        const engine = engineRef.current!
 
-            const container = document.createElement("div")
-            container.className = "inline-options"
-            container.dataset.active = "true"
+        const container = document.createElement("div")
+        container.className = "inline-options"
+        container.dataset.active = "true"
 
-            list.forEach(o => {
-                const btn = document.createElement("button")
-                btn.textContent = o.label
-                btn.dataset.value = o.value != null ? o.value : o.label
-                btn.onclick = async () => {
-                    // Ignorar si el flujo ya fue abortado por restart
-                    if (token !== abortRef.current) return
+        list.forEach(o => {
+            const btn = document.createElement("button")
+            btn.textContent = o.label
+            btn.dataset.value = o.value ?? o.label
 
-                    delete container.dataset.active
-                    container.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
-                        b.disabled = true
-                        b.style.opacity = "0.5"
-                        b.style.cursor = "not-allowed"
-                        b.style.pointerEvents = "none"
-                    })
-                    disableInput()
-                    appendMessage("user", o.label)
-                    await sendFn(o.value != null ? o.value : o.label, token)
+            btn.onclick = async () => {
+                if (token !== abortRef.current) return
+
+                // Deshabilitar botones
+                delete container.dataset.active
+                container.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
+                    b.disabled = true
+                    b.style.opacity = "0.5"
+                    b.style.cursor = "not-allowed"
+                    b.style.pointerEvents = "none"
+                })
+
+                appendMessage("user", o.label)
+                disableInput()
+
+                try {
+                    const nextNode = engine.next(o.value ?? o.label)
+                    // ✅ MISMO FIX: procesar el nodo si existe
+                    if (nextNode) {
+                        processLocalRef.current?.(nextNode, 0, token)
+                        return
+                    }
+                    // Solo si no hay nodo
+                    finishConversationRef.current?.(engine, token)
+                } catch (err: any) {
+                    if (err?.validation_error) {
+                        appendErrorWithDelay(err.message, token)
+                        enableInput()
+                    }
                 }
-                container.appendChild(btn)
-            })
-            bubbleElement.appendChild(container)
-        },
-        [disableInput, appendMessage]
-    )
+            }
+            container.appendChild(btn)
+        })
+        bubbleElement.appendChild(container)
+    }, [appendMessage, disableInput, enableInput])
 
     const appendServerError = useCallback(() => {
         if (!messagesRef.current) return
@@ -616,36 +694,20 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         retryIntervalRef.current = setInterval(async () => {
             try {
-                const r = await fetch(
-                    `${config!.apiBase}/api/public-chatbot/chatbot-conversation/${config!.publicId}/start`,
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ origin_url: config!.originDomain, visitor_id: getVisitorId() })
-                    }
-                )
-                if (!r.ok) return
-
-                const d: ChatNode = await r.json()
-
                 clearInterval(dotsInterval)
                 clearRetryInterval()
                 errorMsgRef.current?.remove()
                 errorMsgRef.current = null
                 if (messagesRef.current) messagesRef.current.innerHTML = ""
-
-                sessionIdRef.current = d.session_id!
-                setSessionId(d.session_id!)
-                localStorage.setItem(`chat_session_${config!.publicId}`, d.session_id!)
                 setStatusText("En línea")
                 setConnectionStatus("connected")
 
-                // Generar token fresco para el flujo de reconexión
                 const freshToken = Symbol("chatbot-reconnect")
                 abortRef.current = freshToken
                 sendingRef.current = false
-                processRef.current?.(d, 0, sendRef.current!, freshToken)
+                engineRef.current = null
 
+                await startRef.current?.(freshToken)
             } catch {
                 // sigue esperando
             }
@@ -657,135 +719,154 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [config, scrollToBottom, clearRetryInterval])
 
     // process recibe y propaga el token de abort en cada paso
-    const process = useCallback(async (
-        node: ChatNode,
-        depth = 0,
-        sendFn: (v: string, token?: symbol) => Promise<void>,
+    // Nueva función — agregar después de process (o reemplazarla)
+    // processLocal: igual que process pero sin fetch, usa el engine
+    const processLocal = useCallback((
+        node: BundleNode,
+        depth: number,
         token: symbol
-    ): Promise<void> => {
+    ): void => {
         if (!node || depth > 50 || !config) return
-
-        // Abortar si el flujo fue invalidado por restart
         if (token !== abortRef.current) return
 
-        const nodeType = node.node_type || node.type
+        const engine = engineRef.current
+        if (!engine) return
 
-        if (node.validation_error) {
-            hideTyping()
-            appendMessage("bot", node.message || "Error de validación", true)
-            configureInput(node.input_type || node.type || "question")
-            enableInput()
-            return
+        const saveEngineState = () => {
+            const state = engine.getState()
+            sessionStorage.setItem(`chatbot_node_${config.publicId}`, JSON.stringify(state))
         }
 
-        if (node.typing_time && node.typing_time > 0) {
-            showTyping()
-            scrollToBottom()
-            await new Promise(r => setTimeout(r, node.typing_time! * 1000))
-            hideTyping()
-        }
+        const runNode = async () => {
+            if (token !== abortRef.current) { hideTyping(); return }
 
-        // Verificar nuevamente tras cada await — restart puede llegar en cualquier momento
-        if (token !== abortRef.current) return
+            const hasTyping = node.typing_time && node.typing_time > 0
 
-        const autoAdvance = async () => {
-            if (token !== abortRef.current) return
-            try {
-                const sid = sessionIdRef.current
-                if (!sid) return
-                const r = await fetch(
-                    `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sid}/next`,
-                    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
-                )
-                if (token !== abortRef.current) return  // restart llegó durante el fetch
-                const nextNode: ChatNode = await r.json()
-                if (!nextNode || nextNode.completed) { disableInput(); return }
-                return process(nextNode, depth + 1, sendFn, token)
-            } catch {
+            if (hasTyping) {
+                showTyping()
+                scrollToBottom()
+                await new Promise(r => setTimeout(r, node.typing_time! * 1000))
+                if (token !== abortRef.current) { hideTyping(); return }
+            }
+
+            const pendingTyping = !hasTyping && typingRef.current !== null
+
+            // ── LINK ──
+            if (node.node_type === "link") {
+                const bubble = (hasTyping || pendingTyping)
+                    ? resolveTyping(node.content || "")
+                    : renderBotMessage(node.content || "")
+                if (node.link_actions?.length) renderLinkActions(node.link_actions, bubble)
+                if (node.end_conversation) {
+                    saveEngineState(); disableInput()
+                    finishConversationRef.current?.(engine, token); return
+                }
+                const next = engine._autoAdvanceFrom(node)
+                if (next) processLocal(next, depth + 1, token)
+                return
+            }
+
+            // ── MEDIA ──
+            if (node.node_type === "media" && Array.isArray(node.media)) {
+                if (hasTyping || pendingTyping) hideTyping()
+                const bubbleElement = (() => {
+                    const b = renderBotMessage("")
+                    b.classList.add("media-only"); b.style.minHeight = "0"; return b
+                })()
+                if (node.content) {
+                    const caption = document.createElement("div")
+                    caption.className = "media-caption"
+                    caption.textContent = node.content
+                    bubbleElement.prepend(caption)
+                    bubbleElement.classList.remove("media-only")
+                }
+                renderMediaCarousel(node.media as MediaItem[], bubbleElement)
+                if (node.end_conversation) {
+                    saveEngineState()
+                    disableInput()
+                    finishConversationRef.current?.(engine, token)
+                    return
+                }
+                saveEngineState()
+                disableInput()
+                await new Promise(r => setTimeout(r, 400))
                 if (token !== abortRef.current) return
-                appendServerErrorRef.current()
+                const next = engine._autoAdvanceFrom(node)
+                if (next) processLocal(next, depth + 1, token)
+                return
+            }
+
+            // ── TEXT / HTML ──
+            if (node.node_type === "text" || node.node_type === "html") {
+                if (node.content) {
+                    (hasTyping || pendingTyping)
+                        ? resolveTyping(node.content)
+                        : renderBotMessage(node.content)
+                } else if (hasTyping) {
+                    hideTyping()
+                }
+                if (node.end_conversation) {
+                    saveEngineState(); disableInput()
+                    finishConversationRef.current?.(engine, token); return
+                }
+                const next = engine._autoAdvanceFrom(node)
+                if (next) processLocal(next, depth + 1, token)
+                return
+            }
+
+            // ── OPTIONS / POLICY ──
+            if (
+                (node.node_type === "options" && node.options?.length) ||
+                (node.node_type === "policy" && node.policy?.length)
+            ) {
+                const bubbleElement = node.content
+                    ? ((hasTyping || pendingTyping)
+                        ? resolveTyping(node.content)
+                        : renderBotMessage(node.content))
+                    : (() => {
+                        if (hasTyping || pendingTyping) hideTyping()
+                        const b = renderBotMessage(""); b.classList.add("media-only"); return b
+                    })()
+                renderInlineOptionsLocal(node, bubbleElement, token)
+                saveEngineState(); disableInput(); return
+            }
+
+            // ── INPUT (question, email, phone, number) ──
+            if (TEXT_INPUT_TYPES.includes(node.node_type || "")) {
+                if (node.content) {
+                    (hasTyping || pendingTyping)
+                        ? resolveTyping(node.content)
+                        : renderBotMessage(node.content)
+                } else if (hasTyping) {
+                    hideTyping()
+                }
+                configureInput(node.node_type || "question")
+                saveEngineState(); enableInput(); return
+            }
+
+            if (node.end_conversation) {
+                saveEngineState()
+                disableInput()
+                finishConversationRef.current?.(engine, token)
             }
         }
 
-        if (nodeType === "link") {
-            const bubble = renderBotMessage(node.content || "")
-            if (node.link_actions?.length) renderLinkActions(node.link_actions, bubble)
-            if (node.end_conversation) { disableInput(); return }
-            await autoAdvance()
-            return
-        }
-
-        if (nodeType === "media" && Array.isArray(node.media)) {
-
-            const bubbleElement = (() => {
-                const b = renderBotMessage("")
-                b.classList.add("media-only")
-                b.style.minHeight = "0"
-                return b
-            })()
-
-            if (node.content) {
-                const caption = document.createElement("div")
-                caption.className = "media-caption"
-                caption.textContent = node.content
-                bubbleElement.prepend(caption)
-                bubbleElement.classList.remove("media-only")
-            }
-
-            renderMediaCarousel(node.media, bubbleElement)
-
-            if (node.end_conversation) { disableInput(); return }
-            disableInput()
-            await new Promise(r => setTimeout(r, 400))
-            if (token !== abortRef.current) return  // restart llegó durante el delay
-            await autoAdvance()
-            return
-        }
-
-        const bubbleElement = node.content
-            ? renderBotMessage(node.content)
-            : (() => { const b = renderBotMessage(""); b.classList.add("media-only"); return b })()
-
-        if ((nodeType === "options" && node.options?.length) ||
-            (nodeType === "policy" && node.policy?.length)) {
-            renderInlineOptions(node, bubbleElement, sendFn, token)
-            disableInput()
-            return
-        }
-
-        if (TEXT_INPUT_TYPES.includes(nodeType || "")) {
-            configureInput(nodeType || "question")
-            enableInput()
-            return
-        }
-
-        if (nodeType === "text" || nodeType === "html") {
-            if (node.end_conversation) { disableInput(); return }
-            await autoAdvance()
-            return
-        }
-
-        if (node.end_conversation) { disableInput(); return }
-
+        runNode()
     }, [
         config,
-        appendMessage, configureInput, enableInput, disableInput,
-        showTyping, hideTyping, scrollToBottom,
-        renderBotMessage, renderLinkActions, renderMediaCarousel, renderInlineOptions,
+        showTyping, hideTyping, resolveTyping, scrollToBottom,
+        renderBotMessage, renderLinkActions, renderMediaCarousel, renderInlineOptionsLocal,
+        disableInput, enableInput, configureInput,
     ])
 
-    // send recibe y propaga el token de abort
     const send = useCallback(async (v?: string, token?: symbol): Promise<void> => {
-        if (!config) return
+        if (!config || !engineRef.current) return
 
-        // Usar el token recibido o el activo en este momento
         const activeToken = token ?? abortRef.current
-
-        // Abortar si el flujo fue invalidado antes de empezar
         if (activeToken !== abortRef.current) return
 
         const text = v ?? inputRef.current?.value?.trim()
-        if (!text || !sessionIdRef.current) return
+        if (!text) return
         if (sendingRef.current) return
         sendingRef.current = true
 
@@ -796,70 +877,124 @@ export function useChatbot(config: ChatbotConfig | null) {
         disableInput()
 
         try {
-            const r = await fetch(
-                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${sessionIdRef.current}/next`,
-                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: text }) }
-            )
+            const engine = engineRef.current
 
-            // Abortar si llegó restart durante el fetch
-            if (activeToken !== abortRef.current) { sendingRef.current = false; return }
+            // ── Validar email/phone usando el método público ──────────────────
+            const currentNode = engine.getCurrentNode()  // ← método público, sin hackear privados
 
-            const nextNode: ChatNode = await r.json()
+            if (currentNode && (currentNode.node_type === "email" || currentNode.node_type === "phone")) {
+                try {
+                    const r = await fetch(
+                        `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/validate-field`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ field: currentNode.node_type, value: text })
+                        }
+                    )
+                    if (activeToken !== abortRef.current) { sendingRef.current = false; return }
 
-            if (nextNode?.validation_error) {
-                appendMessage("bot", nextNode.message || "Error de validación", true)
-                configureInput(nextNode.input_type || nextNode.type || "question")
-                enableInput()
+                    if (r.ok) {
+                        const result = await r.json()
+                        if (!result.valid) {
+                            // ✅ Error del servidor con delay
+                            await appendErrorWithDelay(result.message, activeToken)
+                            if (activeToken !== abortRef.current) { sendingRef.current = false; return }
+                            configureInput(currentNode.node_type)
+                            enableInput()
+                            sendingRef.current = false
+                            return
+                        }
+                    }
+                } catch {
+                    // Si falla la red, el /finish lo atrapará como segunda defensa
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
+            const nextNode = engine.next(text)
+
+            if (nextNode) {
+                processLocalRef.current?.(nextNode, 0, activeToken)
                 sendingRef.current = false
                 return
             }
-            if (nextNode?.completed) { disableInput(); sendingRef.current = false; return }
-            await process(nextNode, 0, send, activeToken)
-        } catch {
-            if (activeToken !== abortRef.current) { sendingRef.current = false; return }
-            hideTyping()
-            appendServerErrorRef.current()
-            enableInput()
+
+            await finishConversationRef.current?.(engine, activeToken)
+
+        } catch (err: any) {
+            if (err?.validation_error) {
+                appendErrorWithDelay(err.message, activeToken)
+                configureInput(err.field || "question")
+                enableInput()
+            }
         }
+
         sendingRef.current = false
-    }, [config, appendMessage, disableInput, enableInput, hideTyping, process])
+    }, [config, appendMessage, disableInput, enableInput, configureInput])
 
-    useEffect(() => { appendServerErrorRef.current = appendServerError }, [appendServerError])
-    useEffect(() => { processRef.current = process }, [process])
-    useEffect(() => { sendRef.current = send }, [send])
-    useEffect(() => { appendMessageRef.current = appendMessage }, [appendMessage])
-    useEffect(() => { disableInputRef.current = disableInput }, [disableInput])
+    const loadBundle = useCallback(async (token?: symbol): Promise<FlowBundle | null> => {
+        if (!config) return null
+        const activeToken = token ?? abortRef.current
+        const BUNDLE_KEY = `chatbot_bundle_${config.publicId}`
+        try {
+            const cached = sessionStorage.getItem(BUNDLE_KEY)
+            if (cached) {
+                const bundle: FlowBundle = JSON.parse(cached)
+                bundleRef.current = bundle
+                console.log("[Chatbot] Cargado!")
+                return bundle
+            }
+        } catch { return null }
+        try {
+            const r = await fetch(
+                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/bundle`
+            )
+            if (activeToken !== abortRef.current) return null
+            if (!r.ok) throw new Error("Bundle fetch failed")
+            const bundle: FlowBundle = await r.json()
+            const replacements: Record<string, string> = {
+                chatbot_name: bundle.chatbot_name,
+            }
+            bundle.nodes = bundle.nodes.map(n => ({
+                ...n,
+                content: n.content
+                    ? n.content.replace(/\{\{(\w+)\}\}/g, (_, key) => replacements[key] ?? `{{${key}}}`)
+                    : n.content
+            }))
+            bundleRef.current = bundle
+            try {
+                sessionStorage.setItem(BUNDLE_KEY, JSON.stringify(bundle))
+            } catch { }
+            return bundle
+        } catch {
+            return null
+        }
+    }, [config])
 
-    // start recibe y verifica el token de abort
     const start = useCallback(async (token?: symbol) => {
         if (!config) return
-
-        // Usar el token recibido (de restart) o el activo actual
         const activeToken = token ?? abortRef.current
-
         try {
-            showTyping()
             setStatusText("Conectando...")
-            const r = await fetch(
-                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/start`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ origin_url: config.originDomain, visitor_id: getVisitorId() })
-                }
-            )
 
-            // Abortar si llegó otro restart durante el fetch
+            showTyping()
+
+            const bundle = await loadBundle(activeToken)
             if (activeToken !== abortRef.current) return
+            if (!bundle) { appendServerErrorRef.current(); return }
 
-            const d: ChatNode = await r.json()
-            sessionIdRef.current = d.session_id!
-            setSessionId(d.session_id!)
-            localStorage.setItem(`chat_session_${config.publicId}`, d.session_id!)
-            hideTyping()
+            // ── SIN showTyping/hideTyping aquí ──
+            const engine = new ChatbotEngine(bundle)
+            engineRef.current = engine
+            localStorage.removeItem(`chat_session_${config.publicId}`)
             setStatusText("En línea")
             setConnectionStatus("connected")
-            process(d, 0, send, activeToken)
+
+            const firstNode = engine.start()
+            if (!firstNode) { disableInput(); return }
+            processLocalRef.current?.(firstNode, 0, activeToken)
+
         } catch {
             if (activeToken !== abortRef.current) return
             hideTyping()
@@ -867,7 +1002,49 @@ export function useChatbot(config: ChatbotConfig | null) {
             setConnectionStatus("error")
             appendServerErrorRef.current()
         }
-    }, [config, showTyping, hideTyping, process, send])
+    }, [config, hideTyping, disableInput, loadBundle])
+
+    const finishConversation = useCallback(async (engine: ChatbotEngine, token: symbol) => {
+        if (!config) return
+        if (token !== abortRef.current) return
+
+        disableInput()
+
+        try {
+            const { history, variables, flow_id } = engine.getPayload()
+
+            const r = await fetch(
+                `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/finish`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        history,
+                        variables,
+                        flow_id,
+                        origin_url: config.originDomain,
+                        visitor_id: getVisitorId()
+                    })
+                }
+            )
+
+            if (token !== abortRef.current) return
+
+            if (r.status === 409) {
+                const body = await r.json()
+                engine.rollback()
+                appendMessage("bot", body.message, true)
+                configureInput(body.field || "question")
+                enableInput()
+                return
+            }
+
+        } catch {
+            if (token !== abortRef.current) return
+            // No bloquear al usuario por fallo en el finish
+            console.error("[chatbot] finishConversation failed")
+        }
+    }, [config, disableInput, appendMessage, enableInput, configureInput])
 
     const toggle = useCallback(() => {
         if (!config) return
@@ -878,14 +1055,10 @@ export function useChatbot(config: ChatbotConfig | null) {
                 setWelcomeVisible(false)
                 setUnreadCount(0)
                 window.parent.postMessage({ type: "CHATBOT_WELCOME_SEEN", instanceId: config.publicId }, "*")
-                if (!startedRef.current) {
-                    startedRef.current = true
-                    setTimeout(() => start(), 0)
-                }
             }
             return next
         })
-    }, [config, start])
+    }, [config])
 
     const close = useCallback(() => {
         isOpenRef.current = false
@@ -893,40 +1066,49 @@ export function useChatbot(config: ChatbotConfig | null) {
     }, [])
 
     const restart = useCallback(async () => {
-        // ── Invalidar TODOS los flujos anteriores de golpe ─────────────────
-        // Esta línea va PRIMERO: cualquier async en vuelo detectará el cambio
-        // en su próxima verificación `if (token !== abortRef.current) return`.
+        if (isRestarting) return  // ← usa el estado, no el ref
+        setIsRestarting(true)     // ← dispara re-render → botón se deshabilita
+
         const freshToken = Symbol("chatbot-restart")
         abortRef.current = freshToken
-
-        // Limpiar locks y timers
         sendingRef.current = false
         clearRetryInterval()
 
-        // Limpiar estado de error
         errorMsgRef.current?.remove()
         errorMsgRef.current = null
+        hideTyping()
 
-        // Limpiar sesión
-        sessionIdRef.current = null
-        setSessionId(null)
         if (config) {
             localStorage.removeItem(`chat_session_${config.publicId}`)
             sessionStorage.removeItem(`chatbot_dom_${config.publicId}`)
+            sessionStorage.removeItem(`chatbot_node_${config.publicId}`)
+            sessionStorage.removeItem(`chatbot_bundle_${config.publicId}`)
         }
 
-        // Limpiar DOM
         if (messagesRef.current) messagesRef.current.innerHTML = ""
         if (inputRef.current) inputRef.current.value = ""
-        if (typingRef.current) { typingRef.current.remove(); typingRef.current = null }
+        typingRef.current = null
 
         disableInput()
         setStatusText("Reiniciando…")
         startedRef.current = true
 
-        // Pasar el token fresco a start para que lo propague a todo el árbol
-        await start(freshToken)
-    }, [config, disableInput, start, clearRetryInterval])
+        try {
+            await startRef.current?.(freshToken)
+        } finally {
+            setIsRestarting(false)  // ← re-render → botón se habilita
+        }
+    }, [config, isRestarting, disableInput, clearRetryInterval, hideTyping])
+
+    // DESPUÉS de todas las funciones:
+    useEffect(() => { loadBundleRef.current = loadBundle }, [loadBundle])
+    useEffect(() => { startRef.current = start }, [start])
+    useEffect(() => { finishConversationRef.current = finishConversation }, [finishConversation])
+    useEffect(() => { processLocalRef.current = processLocal }, [processLocal])
+    useEffect(() => { sendRef.current = send }, [send])
+    useEffect(() => { appendServerErrorRef.current = appendServerError }, [appendServerError])
+    useEffect(() => { appendMessageRef.current = appendMessage }, [appendMessage])
+    useEffect(() => { disableInputRef.current = disableInput }, [disableInput])
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        6. RETURN ANTICIPADO (después de todos los hooks)
@@ -947,5 +1129,6 @@ export function useChatbot(config: ChatbotConfig | null) {
         welcomeVisible, viewerOpen, viewerUrl, viewerIsVideo,
         toggle, close, send, restart, closeViewer,
         connectionStatus, unreadCount,
+        isRestarting: isRestarting
     }
 }

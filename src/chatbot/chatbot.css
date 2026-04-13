@@ -1271,6 +1271,33 @@ main::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
 
+/*Imgen de creado por*/
+.chat-branding {
+    text-align: center;
+    font-size: 11px;
+    color: #9ca3af;
+    padding: 4px 0 6px;
+    background: #fff;
+    border-top: 1px solid #f0f0f0;
+}
+
+.chat-branding a {
+    color: #6b7280;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.chat-branding a:hover {
+    color: var(--chat-primary);
+}
+
+
+/*Para evitar varios reinicio en la aplicacion*/
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* ===============================
    RESPONSIVE — TABLET (481–768px)
 ================================ */

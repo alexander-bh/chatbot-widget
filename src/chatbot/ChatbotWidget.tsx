@@ -56,15 +56,16 @@ export default function ChatbotWidget() {
     const [loading, setLoading] = useState(true)
     const verifyCalledRef = useRef(false)
 
+
     // ── Refs para notificadores ──
-    const notifyWelcomeRef = useRef<(visible: boolean, message: string) => void>(() => {})
-    const notifyResizeRef  = useRef<(open: boolean) => void>(() => {})
+    const notifyWelcomeRef = useRef<(visible: boolean, message: string) => void>(() => { })
+    const notifyResizeRef = useRef<(open: boolean) => void>(() => { })
 
     // Actualizar notificadores cuando llega config
     useEffect(() => {
         if (!config?.publicId) return
         notifyWelcomeRef.current = makeNotifyWelcome(config.publicId)
-        notifyResizeRef.current  = makeNotifyResize(config.publicId)
+        notifyResizeRef.current = makeNotifyResize(config.publicId)
     }, [config?.publicId])
 
     // ── FAB freeze/unfreeze ──
@@ -90,7 +91,7 @@ export default function ChatbotWidget() {
         verifyCalledRef.current = true
         const loadConfig = async () => {
             try {
-                const params  = new URLSearchParams(window.location.search)
+                const params = new URLSearchParams(window.location.search)
                 const encoded = params.get("config")
                 if (!encoded) throw new Error("Missing config")
 
@@ -113,6 +114,15 @@ export default function ChatbotWidget() {
 
     // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
+
+    useEffect(() => {
+        if (!config?.publicId) return
+        window.parent.postMessage({
+            type: "CHATBOT_UNREAD",
+            count: chatbot.unreadCount,
+            instanceId: config.publicId
+        }, "*")
+    }, [chatbot.unreadCount, config?.publicId])
 
     // ── 3. Welcome effect ──
     useEffect(() => {
@@ -201,9 +211,6 @@ export default function ChatbotWidget() {
         return () => window.removeEventListener("message", handler)
     }, [config?.publicId, chatbot.isOpen, chatbot.close])
 
-    // ── Returns condicionales SIEMPRE al final, tras todos los hooks ──
-    if (loading) return null
-
     if (error) {
         if (import.meta.env.DEV) {
             return (
@@ -215,7 +222,7 @@ export default function ChatbotWidget() {
                 }}>
                     <strong>Chatbot error ({error})</strong><br />
                     {error === "expired" && "La sesión expiró. Recarga la página."}
-                    {error === "auth"    && "Dominio no autorizado o firma inválida."}
+                    {error === "auth" && "Dominio no autorizado o firma inválida."}
                     {error === "network" && "No se pudo conectar con el servidor."}
                     {error === "unknown" && "Error desconocido. Revisa la consola."}
                 </div>
@@ -232,13 +239,13 @@ export default function ChatbotWidget() {
         viewerOpen, viewerUrl, viewerIsVideo,
         toggle, close, send, restart, closeViewer,
         connectionStatus,
-        unreadCount,
+        isRestarting
     } = chatbot
 
     const hasAvatar = Boolean(config.avatar)
 
     const handleToggle = () => { notifyResizeRef.current(!isOpen); toggle() }
-    const handleClose  = () => { notifyResizeRef.current(false);   close()  }
+    const handleClose = () => { notifyResizeRef.current(false); close() }
 
     const handleInputFocus = () => {
         setTimeout(() => scrollToBottom(false), 100)
@@ -248,75 +255,87 @@ export default function ChatbotWidget() {
 
     return (
         <>
-            <button
-                className={`chat-fab${isOpen ? " active" : ""}`}
-                onClick={handleToggle}
-                aria-label="Abrir chat"
-            >
-                {hasAvatar
-                    ? <img className="chat-avatar-fab" src={config.avatar} alt={config.name} />
-                    : <span className="chat-avatar-fab-fallback">{config.name?.charAt(0) ?? "C"}</span>
-                }
-                {!isOpen && unreadCount > 0 && (
-                    <span className="fab-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
-                )}
-                {!isOpen && (
-                    <span className={`fab-connection-dot ${connectionStatus}`} />
-                )}
-            </button>
+            <div style={loading || !config ? { visibility: "hidden", pointerEvents: "none" } : undefined}>
+                <button
+                    className={`chat-fab${isOpen ? " active" : ""}`}
+                    onClick={handleToggle}
+                    aria-label="Abrir chat"
+                >
+                    {hasAvatar
+                        ? <img className="chat-avatar-fab" src={config.avatar} alt={config.name} />
+                        : <span className="chat-avatar-fab-fallback">{config.name?.charAt(0) ?? "C"}</span>
+                    }
+                    {!isOpen && (
+                        <span className={`fab-connection-dot ${connectionStatus}`} />
+                    )}
+                </button>
 
-            <div className={`chat-widget${isOpen ? " open" : ""}`}>
-                <div className="chat">
-                    <header className="chat-header">
-                        {hasAvatar
-                            ? <img className="chat-avatar" src={config.avatar} alt={config.name} />
-                            : <span className="chat-avatar-fallback">{config.name?.charAt(0) ?? "C"}</span>
-                        }
-                        <div className="chat-header-info">
-                            <strong>{config.name}</strong>
-                            <div className="chat-status">{statusText}</div>
-                        </div>
-                        <div className="chat-actions">
-                            <button className="chat-restart" onClick={restart} aria-label="Reiniciar conversación">
-                                <RefreshCcw size={18} strokeWidth={2} />
+                <div className={`chat-widget${isOpen ? " open" : ""}`}>
+                    <div className="chat">
+                        <header className="chat-header">
+                            {hasAvatar
+                                ? <img className="chat-avatar" src={config.avatar} alt={config.name} />
+                                : <span className="chat-avatar-fallback">{config.name?.charAt(0) ?? "C"}</span>
+                            }
+                            <div className="chat-header-info">
+                                <strong>{config.name}</strong>
+                                <div className="chat-status">{statusText}</div>
+                            </div>
+                            <div className="chat-actions">
+                                <button
+                                    className="chat-restart"
+                                    onClick={restart}
+                                    disabled={isRestarting}
+                                    aria-label="Reiniciar conversación"
+                                    style={isRestarting ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+                                >
+                                    <RefreshCcw
+                                        size={18}
+                                        strokeWidth={2}
+                                        style={isRestarting ? { animation: "spin 1s linear infinite" } : undefined}
+                                    />
+                                </button>
+                                <button className="chat-close" onClick={handleClose} aria-label="Cerrar chat">
+                                    <X size={18} strokeWidth={2} />
+                                </button>
+                            </div>
+                        </header>
+
+                        <main ref={messagesRef} />
+
+                        <footer>
+                            <input
+                                id="messageInput"
+                                ref={inputRef}
+                                type="text"
+                                autoComplete="off"
+                                placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
+                                disabled={inputDisabled}
+                                onFocus={handleInputFocus}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
+                                }}
+                            />
+                            <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
+                                <Send size={18} strokeWidth={2} />
                             </button>
-                            <button className="chat-close" onClick={handleClose} aria-label="Cerrar chat">
-                                <X size={18} strokeWidth={2} />
-                            </button>
+                        </footer>
+                        <div className="chat-branding">
+                            Creado con <strong>Weblab</strong>
                         </div>
-                    </header>
-
-                    <main ref={messagesRef} />
-
-                    <footer>
-                        <input
-                            id="messageInput"
-                            ref={inputRef}
-                            type="text"
-                            autoComplete="off"
-                            placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
-                            disabled={inputDisabled}
-                            onFocus={handleInputFocus}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
-                            }}
-                        />
-                        <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
-                            <Send size={18} strokeWidth={2} />
-                        </button>
-                    </footer>
+                    </div>
                 </div>
-            </div>
 
-            <div
-                className={`chat-image-viewer${viewerOpen ? " open" : ""}`}
-                onClick={(e) => { if (e.target === e.currentTarget) closeViewer() }}
-            >
-                <span className="viewer-close" onClick={closeViewer}>✕</span>
-                {viewerIsVideo
-                    ? <video className="viewer-video" src={viewerUrl} controls playsInline autoPlay />
-                    : <img className="viewer-img" src={viewerUrl || undefined} alt="preview" />
-                }
+                <div
+                    className={`chat-image-viewer${viewerOpen ? " open" : ""}`}
+                    onClick={(e) => { if (e.target === e.currentTarget) closeViewer() }}
+                >
+                    <span className="viewer-close" onClick={closeViewer}>✕</span>
+                    {viewerIsVideo
+                        ? <video className="viewer-video" src={viewerUrl} controls playsInline autoPlay />
+                        : <img className="viewer-img" src={viewerUrl || undefined} alt="preview" />
+                    }
+                </div>
             </div>
         </>
     )
