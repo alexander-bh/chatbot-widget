@@ -1207,6 +1207,77 @@ footer {
     color: var(--chat-secondary);
 }
 
+footer textarea#messageInput {
+    resize: none;
+    min-height: 38px;
+    max-height: 120px;
+    line-height: 1.4;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* Transición suave del border-radius */
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s, border-radius 0.15s ease;
+}
+
+footer textarea#messageInput::-webkit-scrollbar {
+    display: none;
+}
+
+footer textarea#messageInput.expanded {
+    border-radius: 16px;
+}
+
+/* ===============================
+   INPUT TOOLBAR
+================================ */
+footer {
+    flex-direction: column;
+    /* ← cambiar a column */
+    align-items: stretch;
+    gap: 6px;
+}
+
+.input-toolbar {
+    display: flex;
+    gap: 5px;
+    padding: 0 2px;
+}
+
+.toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1.5px solid #e2e8f0;
+    background: #f4f7fb;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+    background: white;
+    border-color: var(--chat-primary);
+    color: var(--chat-primary);
+    box-shadow: 0 2px 8px rgba(var(--chat-primary-rgb), 0.12);
+}
+
+.toolbar-btn:active {
+    transform: scale(0.95);
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
 #messageInput::placeholder {
     color: #a0aec0;
     font-weight: 400;
@@ -1294,8 +1365,13 @@ main::-webkit-scrollbar-thumb:hover {
 
 /*Para evitar varios reinicio en la aplicacion*/
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ===============================

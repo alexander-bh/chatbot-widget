@@ -50,6 +50,8 @@ function classifyError(err: unknown): ErrorKind {
     return "unknown"
 }
 
+
+
 export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
@@ -253,6 +255,13 @@ export default function ChatbotWidget() {
         setTimeout(() => scrollToBottom(false), 500)
     }
 
+    const resetTextarea = () => {
+        const el = inputRef.current
+        if (!el) return
+        el.style.height = "auto"
+        el.classList.remove("expanded")
+    }
+
     return (
         <>
             <div style={loading || !config ? { visibility: "hidden", pointerEvents: "none" } : undefined}>
@@ -304,22 +313,43 @@ export default function ChatbotWidget() {
                         <main ref={messagesRef} />
 
                         <footer>
-                            <input
-                                id="messageInput"
-                                ref={inputRef}
-                                type="text"
-                                autoComplete="off"
-                                placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
-                                disabled={inputDisabled}
-                                onFocus={handleInputFocus}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() }
-                                }}
-                            />
-                            <button id="sendBtn" onClick={() => send()} disabled={sendDisabled} aria-label="Enviar">
-                                <Send size={18} strokeWidth={2} />
-                            </button>
+                            <div className="input-row">
+                                <textarea
+                                    id="messageInput"
+                                    ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                                    rows={1}
+                                    autoComplete="off"
+                                    placeholder={config.inputPlaceholder ?? "Escribe tu mensaje..."}
+                                    disabled={inputDisabled}
+                                    onFocus={handleInputFocus}
+                                    onInput={(e) => {
+                                        const el = e.currentTarget
+                                        el.style.height = "auto"
+                                        el.style.height = Math.min(el.scrollHeight, 120) + "px"
+                                        if (el.scrollHeight > 48) {
+                                            el.classList.add("expanded")
+                                        } else {
+                                            el.classList.remove("expanded")
+                                        }
+                                        if (!el.value) {
+                                            el.style.height = "auto"
+                                            el.classList.remove("expanded")
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault()
+                                            send()
+                                            setTimeout(resetTextarea, 0)
+                                        }
+                                    }}
+                                />
+                                <button id="sendBtn" onClick={() => { send(); setTimeout(resetTextarea, 0) }} disabled={sendDisabled} aria-label="Enviar">
+                                    <Send size={18} strokeWidth={2} />
+                                </button>
+                            </div>
                         </footer>
+
                         <div className="chat-branding">
                             Creado con <strong>Weblab</strong>
                         </div>

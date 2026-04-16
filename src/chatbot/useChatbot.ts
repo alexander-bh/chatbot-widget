@@ -73,7 +73,7 @@ export function useChatbot(config: ChatbotConfig | null) {
        1. REFS
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const messagesRef = useRef<HTMLDivElement>(null)
-    const inputRef = useRef<HTMLInputElement>(null)
+    const inputRef = useRef<HTMLTextAreaElement>(null)
     const startedRef = useRef(false)
     const typingRef = useRef<HTMLDivElement | null>(null)
     const sendingRef = useRef(false)
@@ -343,11 +343,9 @@ export function useChatbot(config: ChatbotConfig | null) {
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const configureInput = useCallback((type: string) => {
         if (!inputRef.current) return
-        inputRef.current.type = "text"
         inputRef.current.placeholder = config?.inputPlaceholder ?? "Escribe tu mensaje..."
-        if (type === "email") { inputRef.current.type = "email"; inputRef.current.placeholder = "correo@ejemplo.com" }
-        if (type === "phone") { inputRef.current.type = "tel"; inputRef.current.placeholder = "Ej. +52 999 123 4567" }
-        if (type === "number") { inputRef.current.type = "number" }
+        if (type === "email") inputRef.current.placeholder = "correo@ejemplo.com"
+        if (type === "phone") inputRef.current.placeholder = "Ej. +52 999 123 4567"
     }, [config?.inputPlaceholder])
 
     const showTyping = useCallback((): HTMLDivElement => {
