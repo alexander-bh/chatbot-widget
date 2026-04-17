@@ -1178,14 +1178,14 @@ export function useChatbot(config: ChatbotConfig | null) {
                     chatbot_name: bundle.chatbot_name,
                 };
 
-                console.table(bundle.nodes.map(n => ({
+                /*console.table(bundle.nodes.map(n => ({
                     id: n._id,
                     type: n.node_type,
                     content: n.content?.slice(0, 40),
                     next: n.next_node_id,
                     branch: n.branch_id,
                     end: n.end_conversation
-                })))
+                })))*/
                 bundle.nodes = bundle.nodes.map((n) => ({
                     ...n,
                     content: n.content
