@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useChatbot } from "./useChatbot"
 import type { ChatbotConfig } from "./useChatbot"
 import "./chatbot.css"
@@ -50,13 +50,12 @@ function classifyError(err: unknown): ErrorKind {
     return "unknown"
 }
 
-
-
 export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
     const verifyCalledRef = useRef(false)
+
 
 
     // ── Refs para notificadores ──
@@ -89,33 +88,60 @@ export default function ChatbotWidget() {
 
     // ── 1. Cargar config ──
     useEffect(() => {
-        if (verifyCalledRef.current) return
-        verifyCalledRef.current = true
+        if (verifyCalledRef.current) return;
+        verifyCalledRef.current = true;
+
+        // ✅ Limpiar config si la verificación falla
         const loadConfig = async () => {
             try {
-                const params = new URLSearchParams(window.location.search)
-                const encoded = params.get("config")
-                if (!encoded) throw new Error("Missing config")
+                const params = new URLSearchParams(window.location.search);
+                const encoded = params.get("config");
+                if (!encoded) throw new Error("Missing config");
 
-                const { payload: payloadString, signature } = decodeConfigParam(encoded)
+                const { payload: payloadString, signature } = decodeConfigParam(encoded);
+                const apiBase = import.meta.env.VITE_API_BASE_URL;
+                if (!apiBase) throw new Error("VITE_API_BASE_URL no configurado");
 
-                const apiBase = import.meta.env.VITE_API_BASE_URL
-                if (!apiBase) throw new Error("VITE_API_BASE_URL no configurado")
+                // Render optimista con config local
+                try {
+                    const localConfig = JSON.parse(payloadString) as Partial<ChatbotConfig>;
+                    if (localConfig) {
+                        setConfig(localConfig as ChatbotConfig);
+                        setLoading(false); // ✅ El widget ya es visible mientras se verifica
+                    }
+                } catch (_) { }
 
-                const verifiedConfig = await verifyConfig(apiBase, payloadString, signature)
-                setConfig(verifiedConfig)
+                // Si la verificación falla, limpiar config y mostrar error
+                let verifiedConfig: ChatbotConfig;
+                try {
+                    verifiedConfig = await verifyConfig(apiBase, payloadString, signature);
+                } catch (verifyErr) {
+                    setConfig(null); // ✅ Revertir el render optimista
+                    throw verifyErr; // Re-lanzar para que el catch externo setee el error
+                }
+
+                setConfig(verifiedConfig);
             } catch (err) {
-                console.error("[ChatbotWidget] loadConfig:", err)
-                setError(classifyError(err))
+                console.error("[ChatbotWidget] loadConfig:", err);
+                setError(classifyError(err));
             } finally {
-                setLoading(false)
+                setLoading(false);
             }
-        }
-        loadConfig()
-    }, [])
+        };
+
+        loadConfig();
+    }, []);
 
     // ── 2. useChatbot ANTES de cualquier return condicional ──
     const chatbot = useChatbot(config)
+
+    const scrollToBottom = useCallback(() => {
+        const el = chatbot.messagesRef?.current;
+        if (!el) return;
+        requestAnimationFrame(() => {
+            el.scrollTop = el.scrollHeight;
+        });
+    }, [chatbot.messagesRef])
 
     useEffect(() => {
         if (!config?.publicId) return
@@ -139,16 +165,6 @@ export default function ChatbotWidget() {
         }
     }, [chatbot.welcomeVisible, config?.welcomeMessage])
 
-    const scrollToBottom = (smooth = false) => {
-        const el = chatbot.messagesRef?.current
-        if (!el) return
-        el.scrollTop = el.scrollHeight
-        const last = el.querySelector(".msg:last-child")
-        if (last) {
-            last.scrollIntoView({ block: "end", behavior: smooth ? "smooth" : "instant" })
-        }
-    }
-
     const isOpenRef = useRef(false)
     useEffect(() => { isOpenRef.current = chatbot.isOpen }, [chatbot.isOpen])
 
@@ -156,8 +172,8 @@ export default function ChatbotWidget() {
     useEffect(() => {
         const handleViewport = () => {
             if (!isOpenRef.current) return
-            setTimeout(() => scrollToBottom(false), 80)
-            setTimeout(() => scrollToBottom(false), 250)
+            setTimeout(() => scrollToBottom(), 80)
+            setTimeout(() => scrollToBottom(), 250)
         }
 
         if (window.visualViewport) {
@@ -165,7 +181,7 @@ export default function ChatbotWidget() {
         }
 
         const handleResize = () => {
-            if (isOpenRef.current) scrollToBottom(false)
+            if (isOpenRef.current) scrollToBottom()
         }
         window.addEventListener("resize", handleResize)
 
@@ -184,8 +200,8 @@ export default function ChatbotWidget() {
         const handleMessage = (e: MessageEvent) => {
             if (e.data?.instanceId && e.data.instanceId !== pid) return
             if (e.data?.type === "CHATBOT_SCROLL_BOTTOM") {
-                setTimeout(() => scrollToBottom(false), 80)
-                setTimeout(() => scrollToBottom(false), 200)
+                setTimeout(() => scrollToBottom(), 80)
+                setTimeout(() => scrollToBottom(), 200)
             }
         }
         window.addEventListener("message", handleMessage)
@@ -199,19 +215,17 @@ export default function ChatbotWidget() {
         const handler = (e: MessageEvent) => {
             if (e.data?.instanceId && e.data.instanceId !== pid) return
             if (e.data?.type !== "CHATBOT_FORCE_CLOSE") return
-
-            // Solo actuar si el chat está abierto
             if (!chatbot.isOpen) return
-
-            // Cerrar sin notificar al host (el host ya actualizó el iframe)
             chatbot.close()
-
-            // Ocultar welcome bubble si estaba visible
             notifyWelcomeRef.current(false, "")
         }
         window.addEventListener("message", handler)
         return () => window.removeEventListener("message", handler)
     }, [config?.publicId, chatbot.isOpen, chatbot.close])
+
+    const handleInputFocus = useCallback(() => {
+        setTimeout(() => scrollToBottom(), 300);
+    }, [scrollToBottom]);
 
     if (error) {
         if (import.meta.env.DEV) {
@@ -237,7 +251,7 @@ export default function ChatbotWidget() {
 
     const {
         messagesRef, inputRef, isOpen, statusText,
-        inputDisabled, sendDisabled,
+        inputDisabled, sendDisabled, currentNodeType,
         viewerOpen, viewerUrl, viewerIsVideo,
         toggle, close, send, restart, closeViewer,
         connectionStatus,
@@ -248,12 +262,6 @@ export default function ChatbotWidget() {
 
     const handleToggle = () => { notifyResizeRef.current(!isOpen); toggle() }
     const handleClose = () => { notifyResizeRef.current(false); close() }
-
-    const handleInputFocus = () => {
-        setTimeout(() => scrollToBottom(false), 100)
-        setTimeout(() => scrollToBottom(false), 300)
-        setTimeout(() => scrollToBottom(false), 500)
-    }
 
     const resetTextarea = () => {
         const el = inputRef.current
@@ -326,8 +334,11 @@ export default function ChatbotWidget() {
                                         const el = e.currentTarget
                                         el.style.height = "auto"
                                         el.style.height = Math.min(el.scrollHeight, 120) + "px"
-                                        if (el.scrollHeight > 48) {
-                                            el.classList.add("expanded")
+                                        const isSingleLineField = currentNodeType === 'email' || currentNodeType === 'phone'
+                                        if (isSingleLineField) {
+                                            e.currentTarget.style.height = 'auto'
+                                            e.currentTarget.classList.remove('expanded')
+                                            return
                                         } else {
                                             el.classList.remove("expanded")
                                         }
@@ -337,10 +348,11 @@ export default function ChatbotWidget() {
                                         }
                                     }}
                                     onKeyDown={(e) => {
-                                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                        const isSingleLineField = currentNodeType === 'email' || currentNodeType === 'phone'
+                                        if (e.key === 'Enter' && isSingleLineField) {
                                             e.preventDefault()
-                                            send()
-                                            setTimeout(resetTextarea, 0)
+                                            if (!sendDisabled) { send(); setTimeout(resetTextarea, 0) }
+                                            return
                                         }
                                     }}
                                 />

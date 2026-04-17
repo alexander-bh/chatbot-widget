@@ -264,7 +264,7 @@ export class ChatbotEngine {
 
     getCurrentNode(): BundleNode | undefined {
         if (!this._currentNodeId) return undefined
-        return this.nodesMap.get(this._currentNodeId)
+        return this.nodesMap.get(this._currentNodeId!)
     }
 
     // Agregar snapshot antes de next(), para poder revertir
