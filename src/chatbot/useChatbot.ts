@@ -98,6 +98,13 @@ const htmlToText = (html: string): string => {
     }
 };
 
+const getDeviceType = (): "mobile" | "tablet" | "desktop" => {
+  const ua = navigator.userAgent;
+  if (/tablet|ipad|playbook|silk/i.test(ua)) return "tablet";
+  if (/mobile|android|iphone|ipod|blackberry|iemobile|opera mini/i.test(ua)) return "mobile";
+  return "desktop";
+};
+
 export function useChatbot(config: ChatbotConfig | null) {
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
          1. REFS
@@ -123,17 +130,26 @@ export function useChatbot(config: ChatbotConfig | null) {
          2. STATE
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const [isOpen, setIsOpen] = useState(false);
+    const didMountUnreadRef = useRef(false);
+    const didMountWelcomeRef = useRef(false);
     const [connectionStatus, setConnectionStatus] = useState<
         "connected" | "error" | "connecting"
     >("connecting");
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [unreadCount, setUnreadCount] = useState<number>(() => {
+        if (!config) return 0;
+        const saved = localStorage.getItem(`chatbot_unread_${config.publicId}`);
+        return saved ? parseInt(saved, 10) : 0;
+    });
     const [inputDisabled, setInputDisabled] = useState(true);
     const [sendDisabled, setSendDisabled] = useState(true);
     const [statusText, setStatusText] = useState("Conectando...");
     const [viewerOpen, setViewerOpen] = useState(false);
     const [viewerUrl, setViewerUrl] = useState("");
     const [viewerIsVideo, setViewerIsVideo] = useState(false);
-    const [welcomeVisible, setWelcomeVisible] = useState(false);
+    const [welcomeVisible, setWelcomeVisible] = useState<boolean>(() => {
+        if (!config) return false;
+        return sessionStorage.getItem(`chatbot_welcome_${config.publicId}`) === "true";
+    });
     const [isRestarting, setIsRestarting] = useState(false);
 
     // ── Estado de historial expuesto al componente ────────────────────────────
@@ -162,7 +178,7 @@ export function useChatbot(config: ChatbotConfig | null) {
     const engineReadyRef = useRef<Promise<void>>(Promise.resolve());
     const [shouldAutoStart, setShouldAutoStart] = useState(false);
     const resolveEngineRef = useRef<() => void>(() => { });
-    
+
 
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
          3. CALLBACKS BÁSICOS
@@ -287,28 +303,30 @@ export function useChatbot(config: ChatbotConfig | null) {
     // 4g — Auto-start si no hay sesión en sessionStorage
     useEffect(() => {
         if (!config) return;
-        const savedMessages = sessionStorage.getItem(
-            `chatbot_dom_${config.publicId}`
-        );
-        if (savedMessages) return;
-        if (startedRef.current) return;
-        startedRef.current = true;
-        setShouldAutoStart(true);
-    }, [config?.publicId]);
-
-    useEffect(() => {
-        if (!config) return;
         if (startedRef.current) return;
 
         const savedMessages = sessionStorage.getItem(`chatbot_dom_${config.publicId}`);
-        if (savedMessages) return;
+        const needsStart = sessionStorage.getItem(`chatbot_needs_start_${config.publicId}`);
 
+        // Si hay DOM guardado Y no es un restart interrumpido, la Ruta A del efecto 4b ya lo manejó
+        if (savedMessages && !needsStart) return;
+
+        // Evitar doble arranque con lock de 3 segundos
         const lockKey = `chatbot_starting_${config.publicId}`;
         const existing = sessionStorage.getItem(lockKey);
         if (existing && Date.now() - parseInt(existing) < 3000) return;
         sessionStorage.setItem(lockKey, String(Date.now()));
 
         startedRef.current = true;
+
+        // Limpiar residuos de restart interrumpido
+        if (needsStart) {
+            sessionStorage.removeItem(`chatbot_needs_start_${config.publicId}`);
+            sessionStorage.removeItem(`chatbot_dom_${config.publicId}`);
+            sessionStorage.removeItem(`chatbot_node_${config.publicId}`);
+            if (messagesRef.current) messagesRef.current.innerHTML = "";
+        }
+
         setShouldAutoStart(true);
 
         return () => {
@@ -322,9 +340,14 @@ export function useChatbot(config: ChatbotConfig | null) {
         setShouldAutoStart(false);
         const bgToken = abortRef.current;
         setTimeout(() => {
-            startRef.current?.(bgToken);
+            startRef.current?.(bgToken)?.finally(() => {
+                // ✅ Limpiar bandera de needs_start si llegó hasta aquí
+                if (config?.publicId) {
+                    sessionStorage.removeItem(`chatbot_needs_start_${config.publicId}`);
+                }
+            });
         }, 0);
-    }, [shouldAutoStart]);
+    }, [shouldAutoStart, config?.publicId]);
 
     // 4c. Aplicar theme CSS vars
     useEffect(() => {
@@ -345,6 +368,10 @@ export function useChatbot(config: ChatbotConfig | null) {
             const saved = sessionStorage.getItem(MESSAGES_KEY);
             if (saved) {
                 messagesRef.current.innerHTML = saved;
+
+                typingRef.current = null;
+                const staleTyping = messagesRef.current.querySelector('.msg.bot.typing');
+                if (staleTyping) staleTyping.remove();
 
                 const allOptionGroups =
                     messagesRef.current.querySelectorAll<HTMLDivElement>(".inline-options");
@@ -415,6 +442,24 @@ export function useChatbot(config: ChatbotConfig | null) {
 
         return () => observer.disconnect();
     }, [MESSAGES_KEY]);
+
+    useEffect(() => {
+        if (!config) return;
+        if (!didMountUnreadRef.current) {
+            didMountUnreadRef.current = true;
+            return;
+        }
+        localStorage.setItem(`chatbot_unread_${config.publicId}`, String(unreadCount));
+    }, [unreadCount, config?.publicId]);
+
+    useEffect(() => {
+        if (!config) return;
+        if (!didMountWelcomeRef.current) {
+            didMountWelcomeRef.current = true;
+            return;
+        }
+        sessionStorage.setItem(`chatbot_welcome_${config.publicId}`, String(welcomeVisible));
+    }, [welcomeVisible, config?.publicId]);
 
     // 4f. Welcome message
     useEffect(() => {
@@ -1177,7 +1222,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 const replacements: Record<string, string> = {
                     chatbot_name: bundle.chatbot_name,
                 };
-
                 /*console.table(bundle.nodes.map(n => ({
                     id: n._id,
                     type: n.node_type,
@@ -1195,6 +1239,10 @@ export function useChatbot(config: ChatbotConfig | null) {
                         )
                         : n.content,
                 }));
+
+                try {
+                    sessionStorage.setItem(BUNDLE_KEY, JSON.stringify(bundle));
+                } catch { }
                 return bundle;
             } catch {
                 return null;
@@ -1203,103 +1251,6 @@ export function useChatbot(config: ChatbotConfig | null) {
         [config]
     );
 
-    // ── start: detecta sesión previa y decide si restaurar o crear nueva ──────
-    const start = useCallback(
-        async (token?: symbol) => {
-            if (!config) return;
-            const activeToken = token ?? abortRef.current;
-            const vid = visitorIdRef.current || getVisitorId();
-            visitorIdRef.current = vid;
-
-            try {
-                setStatusText("Conectando...");
-                showTyping();
-
-                const bundle = await loadBundle(activeToken);
-                if (activeToken !== abortRef.current) return;
-                if (!bundle) {
-                    appendServerErrorRef.current();
-                    return;
-                }
-
-                const engine = new ChatbotEngine(bundle);
-                engineRef.current = engine;
-                localStorage.removeItem(`chat_session_${config.publicId}`);
-                setStatusText("En línea");
-                setConnectionStatus("connected");
-
-                // ── Detectar si hay sesión previa restaurable ─────────────────
-                const resumable = hasResumableSession(config.publicId, vid);
-
-                if (resumable) {
-                    // Restaurar historial previo en DOM y engine
-                    const prevSession = getActiveSession(config.publicId, vid)!;
-                    hideTyping();
-
-                    // Renderizar mensajes anteriores directamente (sin typing, sin persistir)
-                    _renderHistoryMessages(prevSession.messages);
-
-                    // Restaurar estado del engine
-                    if (prevSession.engineState) {
-                        engine.restoreState(
-                            prevSession.engineState.nodeId!,
-                            prevSession.engineState.variables,
-                            prevSession.engineState.history
-                        );
-                        sessionStorage.setItem(
-                            `chatbot_node_${config.publicId}`,
-                            JSON.stringify(prevSession.engineState)
-                        );
-                    }
-
-                    // Actualizar estado React
-                    setActiveSession(prevSession);
-
-                    // Habilitar input si el flow lo permite
-                    const currentNode = engine.getCurrentNode();
-                    if (
-                        currentNode &&
-                        TEXT_INPUT_TYPES.includes(currentNode.node_type || "")
-                    ) {
-                        configureInput(currentNode.node_type || "question");
-                        enableInput();
-                    } else if (!currentNode || engine.completed) {
-                        disableInput();
-                    } else {
-                        enableInput();
-                    }
-                    return;
-                }
-
-                // ── Nueva sesión ──────────────────────────────────────────────
-                const session = createSession(config.publicId, vid);
-                setActiveSession(session);
-
-                const firstNode = engine.start();
-                if (!firstNode) {
-                    hideTyping();
-                    disableInput();
-                    return;
-                }
-                processLocalRef.current?.(firstNode, 0, activeToken);
-            } catch {
-                if (activeToken !== abortRef.current) return;
-                hideTyping();
-                setStatusText("Error");
-                setConnectionStatus("error");
-                appendServerErrorRef.current();
-            }
-        },
-        [
-            config,
-            hideTyping,
-            disableInput,
-            enableInput,
-            loadBundle,
-            showTyping,
-            configureInput,
-        ]
-    );
 
     // ── Renderiza mensajes históricos en el DOM sin persistirlos de nuevo ─────
     // Función interna (no hook), se llama desde start()
@@ -1348,6 +1299,135 @@ export function useChatbot(config: ChatbotConfig | null) {
         [config?.avatar, scrollToBottom]
     );
 
+    // ── start: detecta sesión previa y decide si restaurar o crear nueva ──────
+    const start = useCallback(
+        async (token?: symbol) => {
+            if (!config) return;
+            const activeToken = token ?? abortRef.current;
+
+            typingRef.current = null;
+            sendingRef.current = false;
+
+            const vid = visitorIdRef.current || getVisitorId();
+            visitorIdRef.current = vid;
+
+            try {
+                setStatusText("Conectando...");
+
+                const bundle = await loadBundle(activeToken);
+                if (activeToken !== abortRef.current) return;
+                if (!bundle) {
+                    appendServerErrorRef.current();
+                    return;
+                }
+
+                showTyping();
+
+                const engine = new ChatbotEngine(bundle);
+                engineRef.current = engine;
+                localStorage.removeItem(`chat_session_${config.publicId}`);
+                setStatusText("En línea");
+                setConnectionStatus("connected");
+
+                // ── Detectar si hay sesión previa restaurable ─────────────────
+                const resumable = hasResumableSession(config.publicId, vid);
+
+                if (resumable) {
+                    const prevSession = getActiveSession(config.publicId, vid)!;
+                    hideTyping();
+
+                    _renderHistoryMessages(prevSession.messages);
+
+                    if (prevSession.engineState) {
+                        engine.restoreState(
+                            prevSession.engineState.nodeId!,
+                            prevSession.engineState.variables,
+                            prevSession.engineState.history
+                        );
+                        sessionStorage.setItem(
+                            `chatbot_node_${config.publicId}`,
+                            JSON.stringify(prevSession.engineState)
+                        );
+                    }
+
+                    setActiveSession(prevSession);
+
+                    const currentNode = engine.getCurrentNode();
+
+                    if (currentNode && TEXT_INPUT_TYPES.includes(currentNode.node_type || "")) {
+                        // Nodo de texto libre: habilitar input directamente
+                        configureInput(currentNode.node_type || "question");
+                        enableInput();
+                    } else if (
+                        currentNode &&
+                        (
+                            (currentNode.node_type === "options" && currentNode.options?.length) ||
+                            (currentNode.node_type === "policy" && currentNode.policy?.length)
+                        )
+                    ) {
+                        // Nodo de opciones: re-renderizar SOLO los botones sin duplicar el texto
+                        const bubble = document.createElement("div");
+                        bubble.className = "bubble media-only";
+
+                        const msgEl = document.createElement("div");
+                        msgEl.className = "msg bot";
+
+                        const avatarImg = document.createElement("img");
+                        avatarImg.src = config.avatar ?? "";
+                        avatarImg.className = "msg-avatar";
+
+                        const contentWrapper = document.createElement("div");
+                        contentWrapper.className = "msg-content";
+                        contentWrapper.appendChild(bubble);
+
+                        msgEl.append(avatarImg, contentWrapper);
+                        messagesRef.current?.appendChild(msgEl);
+                        scrollToBottom();
+
+                        renderInlineOptionsLocal(currentNode, bubble, activeToken);
+                        disableInput();
+                    } else if (!currentNode || engine.completed) {
+                        disableInput();
+                    } else {
+                        enableInput();
+                    }
+
+                    return;
+                }
+
+                // ── Nueva sesión ──────────────────────────────────────────────
+                const session = createSession(config.publicId, vid);
+                setActiveSession(session);
+
+                const firstNode = engine.start();
+                if (!firstNode) {
+                    hideTyping();
+                    disableInput();
+                    return;
+                }
+                processLocalRef.current?.(firstNode, 0, activeToken);
+            } catch {
+                if (activeToken !== abortRef.current) return;
+                hideTyping();
+                setStatusText("Error");
+                setConnectionStatus("error");
+                appendServerErrorRef.current();
+            }
+        },
+        [
+            config,
+            hideTyping,
+            disableInput,
+            enableInput,
+            loadBundle,
+            showTyping,
+            configureInput,
+            scrollToBottom,
+            renderInlineOptionsLocal,
+            _renderHistoryMessages
+        ]
+    );
+
     const finishConversation = useCallback(
         async (engine: ChatbotEngine, token: symbol) => {
             if (!config) return;
@@ -1373,6 +1453,7 @@ export function useChatbot(config: ChatbotConfig | null) {
                             flow_id,
                             origin_url: config.originDomain,
                             visitor_id: getVisitorId(),
+                            device: getDeviceType(),
                         }),
                     }
                 );
@@ -1403,6 +1484,8 @@ export function useChatbot(config: ChatbotConfig | null) {
             if (next) {
                 setWelcomeVisible(false);
                 setUnreadCount(0);
+                localStorage.removeItem(`chatbot_unread_${config.publicId}`);
+                sessionStorage.removeItem(`chatbot_welcome_${config.publicId}`);
                 window.parent.postMessage(
                     { type: "CHATBOT_WELCOME_SEEN", instanceId: config.publicId },
                     "*"
@@ -1430,16 +1513,17 @@ export function useChatbot(config: ChatbotConfig | null) {
         errorMsgRef.current?.remove();
         errorMsgRef.current = null;
         hideTyping();
+        typingRef.current = null;
 
         if (config) {
             const vid = visitorIdRef.current || getVisitorId();
-            // Limpiar sessionStorage (DOM + nodo)
             localStorage.removeItem(`chat_session_${config.publicId}`);
             sessionStorage.removeItem(`chatbot_dom_${config.publicId}`);
             sessionStorage.removeItem(`chatbot_node_${config.publicId}`);
             sessionStorage.removeItem(`chatbot_bundle_${config.publicId}`);
-            // Limpiar sesión activa del historial persistente
+            sessionStorage.removeItem(MESSAGES_KEY ?? '');
             clearActiveSession(config.publicId, vid);
+            sessionStorage.setItem(`chatbot_needs_start_${config.publicId}`, "1");
         }
 
         if (messagesRef.current) messagesRef.current.innerHTML = "";
@@ -1447,17 +1531,14 @@ export function useChatbot(config: ChatbotConfig | null) {
         typingRef.current = null;
         engineRef.current = null;
         setActiveSession(null);
-
         disableInput();
         setStatusText("Reiniciando…");
-        startedRef.current = true;
 
-        try {
-            await startRef.current?.(freshToken);
-        } finally {
-            setIsRestarting(false);
-        }
-    }, [config, isRestarting, disableInput, clearRetryInterval, hideTyping]);
+        startedRef.current = false;
+        setShouldAutoStart(true);
+        setTimeout(() => setIsRestarting(false), 100);
+
+    }, [config, disableInput, clearRetryInterval, hideTyping, MESSAGES_KEY]);
 
     // ── Descargar historial de la sesión activa ────────────────────────────────
     const downloadHistory = useCallback(() => {

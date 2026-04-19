@@ -55,8 +55,7 @@ export default function ChatbotWidget() {
     const [error, setError] = useState<ErrorKind | null>(null)
     const [loading, setLoading] = useState(true)
     const verifyCalledRef = useRef(false)
-
-
+    const prevUnreadRef = useRef<number>(-1)
 
     // ── Refs para notificadores ──
     const notifyWelcomeRef = useRef<(visible: boolean, message: string) => void>(() => { })
@@ -90,8 +89,6 @@ export default function ChatbotWidget() {
     useEffect(() => {
         if (verifyCalledRef.current) return;
         verifyCalledRef.current = true;
-
-        // ✅ Limpiar config si la verificación falla
         const loadConfig = async () => {
             try {
                 const params = new URLSearchParams(window.location.search);
@@ -128,7 +125,6 @@ export default function ChatbotWidget() {
                 setLoading(false);
             }
         };
-
         loadConfig();
     }, []);
 
@@ -145,13 +141,16 @@ export default function ChatbotWidget() {
 
     useEffect(() => {
         if (!config?.publicId) return
+        // Solo enviar si el valor realmente cambió (evita el 0 inicial)
+        if (prevUnreadRef.current === chatbot.unreadCount) return
+        prevUnreadRef.current = chatbot.unreadCount
         window.parent.postMessage({
             type: "CHATBOT_UNREAD",
             count: chatbot.unreadCount,
             instanceId: config.publicId
         }, "*")
     }, [chatbot.unreadCount, config?.publicId])
-
+    
     // ── 3. Welcome effect ──
     useEffect(() => {
         if (!config?.welcomeMessage) return
@@ -164,6 +163,7 @@ export default function ChatbotWidget() {
             notifyWelcomeRef.current(false, "")
         }
     }, [chatbot.welcomeVisible, config?.welcomeMessage])
+
 
     const isOpenRef = useRef(false)
     useEffect(() => { isOpenRef.current = chatbot.isOpen }, [chatbot.isOpen])
@@ -272,11 +272,12 @@ export default function ChatbotWidget() {
 
     return (
         <>
-            <div style={loading || !config ? { visibility: "hidden", pointerEvents: "none" } : undefined}>
+            {config && (
                 <button
-                    className={`chat-fab${isOpen ? " active" : ""}`}
+                    className={`chat-fab${isOpen ? " active" : ""}${loading ? " no-transition" : ""}`}
                     onClick={handleToggle}
                     aria-label="Abrir chat"
+                    style={loading ? { pointerEvents: "none" } : undefined}
                 >
                     {hasAvatar
                         ? <img className="chat-avatar-fab" src={config.avatar} alt={config.name} />
@@ -285,8 +286,15 @@ export default function ChatbotWidget() {
                     {!isOpen && (
                         <span className={`fab-connection-dot ${connectionStatus}`} />
                     )}
+                    {!isOpen && chatbot.unreadCount > 0 && (
+                        <span className="fab-unread-badge">
+                            {chatbot.unreadCount > 99 ? "99+" : chatbot.unreadCount}
+                        </span>
+                    )}
                 </button>
+            )}
 
+            <div style={loading || !config ? { visibility: "hidden", pointerEvents: "none" } : undefined}>
                 <div className={`chat-widget${isOpen ? " open" : ""}`}>
                     <div className="chat">
                         <header className="chat-header">
