@@ -286,11 +286,6 @@ export default function ChatbotWidget() {
                     {!isOpen && (
                         <span className={`fab-connection-dot ${connectionStatus}`} />
                     )}
-                    {!isOpen && chatbot.unreadCount > 0 && (
-                        <span className="fab-unread-badge">
-                            {chatbot.unreadCount > 99 ? "99+" : chatbot.unreadCount}
-                        </span>
-                    )}
                 </button>
             )}
 
