@@ -50,6 +50,9 @@ function classifyError(err: unknown): ErrorKind {
     return "unknown"
 }
 
+// Detecta si el dispositivo es móvil por userAgent
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
 export default function ChatbotWidget() {
     const [config, setConfig] = useState<ChatbotConfig | null>(null)
     const [error, setError] = useState<ErrorKind | null>(null)
@@ -150,7 +153,7 @@ export default function ChatbotWidget() {
             instanceId: config.publicId
         }, "*")
     }, [chatbot.unreadCount, config?.publicId])
-    
+
     // ── 3. Welcome effect ──
     useEffect(() => {
         if (!config?.welcomeMessage) return
@@ -263,11 +266,13 @@ export default function ChatbotWidget() {
     const handleToggle = () => { notifyResizeRef.current(!isOpen); toggle() }
     const handleClose = () => { notifyResizeRef.current(false); close() }
 
+    // Limpia el textarea y quita clases de expansión al enviar
     const resetTextarea = () => {
         const el = inputRef.current
         if (!el) return
         el.style.height = "auto"
         el.classList.remove("expanded")
+        el.classList.remove("multiline")
     }
 
     return (
@@ -337,29 +342,58 @@ export default function ChatbotWidget() {
                                         const el = e.currentTarget
                                         el.style.height = "auto"
                                         el.style.height = Math.min(el.scrollHeight, 120) + "px"
+
                                         const isSingleLineField = currentNodeType === 'email' || currentNodeType === 'phone'
                                         if (isSingleLineField) {
-                                            e.currentTarget.style.height = 'auto'
-                                            e.currentTarget.classList.remove('expanded')
+                                            el.style.height = 'auto'
+                                            el.classList.remove('expanded')
+                                            el.classList.remove('multiline')
                                             return
                                         } else {
                                             el.classList.remove("expanded")
                                         }
+
                                         if (!el.value) {
                                             el.style.height = "auto"
                                             el.classList.remove("expanded")
+                                            el.classList.remove("multiline")
+                                            return
+                                        }
+
+                                        // Quitar bordes redondeados si el contenido ocupa más de una línea
+                                        const isMultiline = el.scrollHeight > 46 || el.value.includes('\n')
+                                        if (isMultiline) {
+                                            el.classList.add("multiline")
+                                        } else {
+                                            el.classList.remove("multiline")
                                         }
                                     }}
                                     onKeyDown={(e) => {
                                         const isSingleLineField = currentNodeType === 'email' || currentNodeType === 'phone'
+                                        const isMobile = isMobileDevice()
+
+                                        // Campos de una sola línea: Enter siempre envía (móvil y desktop)
                                         if (e.key === 'Enter' && isSingleLineField) {
                                             e.preventDefault()
                                             if (!sendDisabled) { send(); setTimeout(resetTextarea, 0) }
                                             return
                                         }
+                                        if (e.key === 'Enter' && isMobile) {
+                                            return // dejar el comportamiento nativo (salto de línea)
+                                        }
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
+                                            if (!sendDisabled) { send(); setTimeout(resetTextarea, 0) }
+                                        }
+                                        // Shift+Enter en desktop → no se intercepta, hace salto de línea normal
                                     }}
                                 />
-                                <button id="sendBtn" onClick={() => { send(); setTimeout(resetTextarea, 0) }} disabled={sendDisabled} aria-label="Enviar">
+                                <button
+                                    id="sendBtn"
+                                    onClick={() => { send(); setTimeout(resetTextarea, 0) }}
+                                    disabled={sendDisabled}
+                                    aria-label="Enviar"
+                                >
                                     <Send size={18} strokeWidth={2} />
                                 </button>
                             </div>
