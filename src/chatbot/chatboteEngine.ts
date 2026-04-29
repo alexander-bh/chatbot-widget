@@ -163,16 +163,26 @@ export class ChatbotEngine {
         const val = node.validation as any
         if (!val) return null
 
+        // ── Validaciones base SIEMPRE (sin importar si hay config) ───────────────
+        if (node.node_type === "email") {
+            const cleaned = String(input).trim()
+            const ok = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(cleaned)
+            if (!ok) return "Correo inválido."
+        }
+
+        if (node.node_type === "phone") {
+            const cleaned = String(input).trim()
+            // Solo permite: dígitos, +, espacios, guiones, paréntesis
+            const hasInvalidChars = /[^0-9+\s\-()]/.test(cleaned)
+            if (hasInvalidChars) return "Teléfono inválido. Solo se permiten números."
+            const digits = cleaned.replace(/\D/g, "")
+            if (digits.length < 7 || digits.length > 15) return "Teléfono inválido. Debe tener entre 7 y 15 dígitos."
+        }
+
+        if (!val) return null
+
         // ── Formato NUEVO (plano): { min_length, min, max, message } ──────────
         if (!val.rules) {
-            if (node.node_type === "email") {
-                const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input).trim())
-                if (!ok) return val.message || "Correo inválido."
-            }
-            if (node.node_type === "phone") {
-                const digits = String(input).replace(/\D/g, "")
-                if (digits.length < 7) return val.message || "Teléfono inválido."
-            }
             if (node.node_type === "number") {
                 const n = Number(input)
                 if (isNaN(n)) return val.message || "Debe ser un número."
@@ -196,7 +206,7 @@ export class ChatbotEngine {
                     if (!value.length) return rule.message
                     break
                 case "email":
-                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+                    if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(value))
                         return rule.message
                     break
                 case "phone": {
