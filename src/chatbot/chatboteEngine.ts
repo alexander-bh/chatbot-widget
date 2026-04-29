@@ -174,7 +174,7 @@ export class ChatbotEngine {
             const cleaned = String(input).trim()
             // Solo permite: dígitos, +, espacios, guiones, paréntesis
             const hasInvalidChars = /[^0-9+\s\-()]/.test(cleaned)
-            if (hasInvalidChars) return "Teléfono inválido. Solo se permiten números."
+            if (hasInvalidChars) return "Teléfono inválido."
             const digits = cleaned.replace(/\D/g, "")
             if (digits.length < 7 || digits.length > 15) return "Teléfono inválido. Debe tener entre 7 y 15 dígitos."
         }
