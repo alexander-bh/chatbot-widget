@@ -99,10 +99,10 @@ const htmlToText = (html: string): string => {
 };
 
 const getDeviceType = (): "mobile" | "tablet" | "desktop" => {
-  const ua = navigator.userAgent;
-  if (/tablet|ipad|playbook|silk/i.test(ua)) return "tablet";
-  if (/mobile|android|iphone|ipod|blackberry|iemobile|opera mini/i.test(ua)) return "mobile";
-  return "desktop";
+    const ua = navigator.userAgent;
+    if (/tablet|ipad|playbook|silk/i.test(ua)) return "tablet";
+    if (/mobile|android|iphone|ipod|blackberry|iemobile|opera mini/i.test(ua)) return "mobile";
+    return "desktop";
 };
 
 export function useChatbot(config: ChatbotConfig | null) {
@@ -1132,49 +1132,7 @@ export function useChatbot(config: ChatbotConfig | null) {
             try {
                 const engine = engineRef.current;
 
-                const currentNode = engine.getCurrentNode();
-
-                if (
-                    currentNode &&
-                    (currentNode.node_type === "email" ||
-                        currentNode.node_type === "phone")
-                ) {
-                    try {
-                        const r = await fetch(
-                            `${config.apiBase}/api/public-chatbot/chatbot-conversation/${config.publicId}/validate-field`,
-                            {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    field: currentNode.node_type,
-                                    value: text,
-                                }),
-                            }
-                        );
-                        if (activeToken !== abortRef.current) {
-                            sendingRef.current = false;
-                            return;
-                        }
-
-                        if (r.ok) {
-                            const result = await r.json();
-                            if (!result.valid) {
-                                await appendErrorWithDelay(result.message, activeToken);
-                                if (activeToken !== abortRef.current) {
-                                    sendingRef.current = false;
-                                    return;
-                                }
-                                configureInput(currentNode.node_type);
-                                enableInput();
-                                sendingRef.current = false;
-                                return;
-                            }
-                        }
-                    } catch {
-                        // fallback
-                    }
-                }
-
+                // ✅ Va directo aquí, sin fetch de validación
                 const nextNode = engine.next(text);
 
                 if (nextNode) {
@@ -1222,14 +1180,6 @@ export function useChatbot(config: ChatbotConfig | null) {
                 const replacements: Record<string, string> = {
                     chatbot_name: bundle.chatbot_name,
                 };
-                /*console.table(bundle.nodes.map(n => ({
-                    id: n._id,
-                    type: n.node_type,
-                    content: n.content?.slice(0, 40),
-                    next: n.next_node_id,
-                    branch: n.branch_id,
-                    end: n.end_conversation
-                })))*/
                 bundle.nodes = bundle.nodes.map((n) => ({
                     ...n,
                     content: n.content
