@@ -166,7 +166,7 @@ export class ChatbotEngine {
         // ── Validaciones base SIEMPRE (sin importar si hay config) ───────────────
         if (node.node_type === "email") {
             const cleaned = String(input).trim()
-            const ok = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(cleaned)
+            const ok = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,10}$/.test(cleaned)
             if (!ok) return "Correo inválido."
         }
 
@@ -206,7 +206,7 @@ export class ChatbotEngine {
                     if (!value.length) return rule.message
                     break
                 case "email":
-                    if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(value))
+                    if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,10}$/.test(value))
                         return rule.message
                     break
                 case "phone": {
