@@ -94,7 +94,8 @@ export default function ChatbotWidget() {
         verifyCalledRef.current = true;
         const loadConfig = async () => {
             try {
-                const params = new URLSearchParams(window.location.search);
+                const hash = window.location.hash.slice(1);
+                const params = new URLSearchParams(hash);
                 const encoded = params.get("config");
                 if (!encoded) throw new Error("Missing config");
 
